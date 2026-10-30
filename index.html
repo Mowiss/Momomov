@@ -480,7 +480,7 @@ setTimeout(done,5600);
     <button class="hbtn ico" id="btn-redo" title="Rétablir (Ctrl+Y)" data-act="redo"></button>
   </div>
 
-  <div class="hgroup" id="hmain"></div>
+  <div class="hgroup hidden" id="hmain"></div>
   <span class="doc-name" id="docname"></span>
   <div class="spacer"></div>
 
@@ -1659,6 +1659,11 @@ function TLdown(e) {
     const mk = P.markers.find(m => Math.abs(xAt(m.t) - x) < 6 && y < 17);
     if (mk && e.button === 2) { act(() => { P.markers = P.markers.filter(m => m !== mk); }); return; }
     if (mk) { setTime(mk.t); return; }
+    if (e.button === 2) { const t = fsnap(tAt(x)); return ctxMenu(e.clientX, e.clientY, [
+      { t: 'Poser un marqueur ici', ic: 'marker', k: 'M', f: () => { setTime(t); addMarker(); } },
+      '-', { t: 'Début de zone ici', k: 'I', f: () => { setTime(t); setIO('a'); } },
+      { t: 'Fin de zone ici', k: 'O', f: () => { setTime(t); setIO('b'); } },
+      { t: 'Effacer la zone', k: 'Alt+X', f: clearIO, dis: !P.io }]); }
     if (PLAY.on) pause();
     TL.drag = { k: 'scrub' }; setTime(tAt(x)); return;
   }
@@ -1823,7 +1828,7 @@ function buildHeader() {
     <button class="hbtn ico" title="Plein écran (F11)" data-act="fullscreen">${ic('expand')}</button>
     <div class="dd"><button class="hbtn ico" data-menu="m-file" title="Fichier : ouvrir, enregistrer, enregistrer sous, backup auto">${ic('save')}</button>
       <div class="menu right hidden" id="m-file">
-        ${mb('open', 'Ouvrir…', 'Ctrl+O')}${mb('save', 'Enregistrer', 'Ctrl+S')}${mb('saveas', 'Enregistrer sous…', 'Ctrl+Maj+S')}
+        ${mb('new', 'Nouveau projet…', 'Ctrl+N')}${mb('open', 'Ouvrir…', 'Ctrl+O')}${mb('save', 'Enregistrer', 'Ctrl+S')}${mb('saveas', 'Enregistrer sous…', 'Ctrl+Maj+S')}
         <hr><div class="mlabel">Backup auto (dans le navigateur)</div>
         <div style="padding:4px 10px 6px;display:flex;align-items:center;gap:8px">Toutes les
           <select id="backup-int"><option value="0">désactivé</option><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option></select></div>
@@ -1844,7 +1849,7 @@ function buildHeader() {
 
 /* ---------- Palette d'outils (lignes complètes de 3) ---------- */
 const PAL = [
-  ['outils', 'Outils', [['tool:sel', 'cursor', 'Sélection : déplacer et rogner les clips (V)', 'c-blue'], ['tool:blade', 'blade', 'Lame : cliquer sur un clip pour le couper (C)', 'c-red'], ['title:center', 'text', 'Ajouter un titre (T)', 'c-amber']]],
+  ['outils', 'Outils', [['tool:sel', 'cursor', 'Sélection : déplacer et rogner les clips (V)', 'c-blue'], ['tool:blade', 'blade', 'Lame : cliquer sur un clip pour le couper (C)', 'c-red'], ['titlemenu', 'text', 'Ajouter un titre : choisir un modèle (T = titre centré)', 'c-amber']]],
   ['montage', 'Montage', [['split', 'split', 'Scinder à la tête de lecture (S)', 'c-red'], ['del', 'trash', 'Supprimer (Suppr)', 'c-red'], ['ripple', 'ripple', 'Supprimer et refermer le vide (Maj+Suppr)', 'c-orange'],
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
@@ -1959,7 +1964,8 @@ function binInit() {
       { t: 'Ajouter à la tête de lecture', ic: 'plus', f: () => act(() => insertMedia(md, T)) },
       { t: 'Ajouter à la fin du montage', ic: 'arrowR', f: () => act(() => insertMedia(md, projDur())) },
       { t: 'Renommer…', ic: 'text', f: () => promptBox('Nom du média', md.name, v => act(() => { md.name = v; })) },
-      '-', { t: 'Retirer de la médiathèque', ic: 'trash', f: () => delMedia(md.id) }
+      '-', { t: 'Retirer de la médiathèque', ic: 'trash', f: () => delMedia(md.id) },
+      { t: 'Retirer tous les médias inutilisés', ic: 'trash', f: purgeMedia }
     ]);
   });
 }
@@ -2864,7 +2870,7 @@ function openGuide(id) {
    ========================================================================== */
 function doAct(a) {
   const [k, v] = a.split(/:(.*)/s);
-  if (!P && !['binclose', 'bintoggle', 'inspclose', 'insptoggle', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
+  if (!P && !['titlemenu', 'binclose', 'bintoggle', 'inspclose', 'insptoggle', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
   switch (k) {
     case 'undo': return undo();
     case 'redo': return redo();
@@ -2905,6 +2911,7 @@ function doAct(a) {
     case 'mutesel': { const l = selClips().filter(isAV); if (!l.length) return toast('Sélectionnez un clip vidéo ou son'); const m = !l[0].mute; return act(() => { for (const c of l) c.mute = m; }); }
     case 'selall': SEL = new Set(P.clips.filter(c => !lockedClip(c)).map(c => c.id)); return refreshAll();
     case 'title': return addTitle(v);
+    case 'titlemenu': { const b = $('[data-act="titlemenu"]').getBoundingClientRect(); return ctxMenu(b.right + 6, b.top, [{ label: 'Titres à la tête de lecture' }, ...TITLES.map(t => ({ t: t.n, ic: t.i, k: t.k === 'center' ? 'T' : '', f: () => addTitle(t.k) }))]); }
     case 'color': return addColor();
     case 'look': return applyLook(v);
     case 'qt': return quickTrans(v);
