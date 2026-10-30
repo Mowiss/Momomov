@@ -138,10 +138,11 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 #work{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
 #top{flex:1;display:flex;min-height:140px}
 .pane{background:var(--g800);display:flex;flex-direction:column;min-height:0;flex:none}
-#bin{width:var(--binw);border-right:1px solid var(--g700)}
+#bin{width:var(--binw);border-left:1px solid var(--g700)}
 #insp{width:var(--inspw);border-left:1px solid var(--g700)}
 .ph{display:flex;align-items:center;gap:8px;padding:0 10px;height:34px;background:var(--g850);border-bottom:1px solid var(--g700);font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--g400);flex:none}
 .ph .sp{flex:1}
+.ph>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ph .pbtn{height:24px;min-width:24px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border-radius:5px;border:1px solid var(--g600);background:var(--g700);cursor:pointer;color:var(--g200);font-size:11px;letter-spacing:0;text-transform:none;font-weight:600}
 .ph .pbtn:hover{background:var(--g600)}
 .ph .pbtn svg{width:14px;height:14px}
@@ -218,13 +219,17 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 #zoom{width:120px;accent-color:var(--brand3)}
 .tlsep{width:1px;height:20px;background:var(--g700)}
 #tlbody{flex:1;display:flex;min-height:0;position:relative}
-#tlheads{width:132px;flex:none;background:var(--g800);border-right:1px solid var(--g700);position:relative;overflow:hidden}
+#tlheads{width:178px;flex:none;background:var(--g800);border-right:1px solid var(--g700);position:relative;overflow:hidden}
 #tlheads .rulerpad{height:26px;border-bottom:1px solid var(--g700);display:flex;align-items:center;justify-content:center;font:600 11px ui-monospace,monospace;color:var(--g400);background:var(--g850)}
 #theads{position:absolute;left:0;right:0;top:26px}
 .thd{display:flex;align-items:center;gap:4px;padding:0 6px;border-bottom:1px solid var(--g750);position:absolute;left:0;right:0}
 .thd .tn{font-weight:800;font-size:12px;width:26px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:#111827}
 .thd.v .tn{background:var(--cv)}.thd.a .tn{background:var(--ca)}
 .thd .tsp{flex:1}
+.thd .tnm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;color:var(--g300);cursor:text;padding:2px 3px;border-radius:4px}
+.thd .tnm:hover{background:var(--g700)}
+.thd .tnm.tph{color:var(--g500);font-style:italic}
+.thd input.tnm{background:#111827;border:1px solid var(--brand3);outline:none;font:inherit;font-size:11.5px;color:#fff}
 .thd button{width:24px;height:24px;border:1px solid transparent;background:none;border-radius:5px;cursor:pointer;color:var(--g400);display:flex;align-items:center;justify-content:center;padding:0}
 .thd button:hover{background:var(--g700);color:var(--g200)}
 .thd button svg{width:15px;height:15px}
@@ -233,21 +238,20 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .thd .del{opacity:0}.thd:hover .del{opacity:1}
 #tlwrap{flex:1;position:relative;min-width:0;overflow:hidden}
 #tlc{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
-#hscroll{height:12px;flex:none;background:var(--g900);border-top:1px solid var(--g700);position:relative;margin-left:132px}
+#hscroll{height:12px;flex:none;background:var(--g900);border-top:1px solid var(--g700);position:relative;margin-left:178px}
 #hthumb{position:absolute;top:2px;height:7px;border-radius:4px;background:var(--g600);cursor:grab;min-width:24px}
 #hthumb:hover{background:var(--g500)}
 
 /* Volets repliables */
 .ph .pbtn.ico{width:24px;padding:0}
-.ptab{width:26px;flex:none;background:var(--g800);border:0;border-right:1px solid var(--g700);display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;cursor:pointer;color:var(--g400);font:700 11px system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase}
-.ptab.right{border-right:0;border-left:1px solid var(--g700)}
+#ptabs{width:28px;flex:none;background:var(--g850);border-left:1px solid var(--g700);display:flex;flex-direction:column}
+.ptab{width:100%;background:none;border:0;border-bottom:1px solid var(--g700);display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;cursor:pointer;color:var(--g400);font:700 11px system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase}
+.ptab.on{background:var(--g800);color:#fff;box-shadow:inset 3px 0 0 var(--brand3)}
 .ptab:hover{background:var(--g750);color:#fff}
 .ptab svg{width:15px;height:15px}
 .ptab span{writing-mode:vertical-rl;white-space:nowrap}
-.ptab.left span{transform:rotate(180deg)}
 .ptab.flash{animation:pflash .9s}
 @keyframes pflash{30%{background:var(--brand);color:#fff}}
-#top:not(.binc) #bintab,#top:not(.inspc) #insptab{display:none}
 #top.binc #bin,#top.binc #vs1,#top.inspc #insp,#top.inspc #vs2{display:none}
 /* Inspecteur */
 #insp .pb{padding:10px}
@@ -489,13 +493,6 @@ setTimeout(done,5600);
   <aside class="tools" id="tools"></aside>
   <div id="work">
     <div id="top">
-      <button class="ptab left" id="bintab" data-act="binopen" title="Ouvrir la médiathèque"></button>
-      <section class="pane" id="bin">
-        <div class="ph"><span id="bin-t">Médiathèque</span><span class="sp"></span><button class="pbtn" id="binimp" data-act="import" title="Importer des vidéos, sons ou images (Ctrl+I)"></button><button class="pbtn ico" id="binclose" data-act="binclose" title="Replier la médiathèque"></button></div>
-        <div class="binfilt" id="binfilt"><button data-f="all" class="on">Tout</button><button data-f="video">Vidéos</button><button data-f="audio">Sons</button><button data-f="image">Images</button></div>
-        <div class="pb" id="binlist"></div>
-      </section>
-      <div class="vsplit" id="vs1"></div>
       <section id="viewer">
         <div id="vwrap">
           <canvas id="cv" width="1920" height="1080"></canvas>
@@ -504,12 +501,18 @@ setTimeout(done,5600);
         </div>
         <div id="transport"></div>
       </section>
+      <div class="vsplit" id="vs1"></div>
+      <section class="pane" id="bin">
+        <div class="ph"><span id="bin-t">Médiathèque</span><span class="sp"></span><button class="pbtn" id="binimp" data-act="import" title="Importer des vidéos, sons ou images (Ctrl+I)"></button><button class="pbtn ico" id="binclose" data-act="binclose" title="Replier la médiathèque"></button></div>
+        <div class="binfilt" id="binfilt"><button data-f="all" class="on">Tout</button><button data-f="video">Vidéos</button><button data-f="audio">Sons</button><button data-f="image">Images</button></div>
+        <div class="pb" id="binlist"></div>
+      </section>
       <div class="vsplit" id="vs2"></div>
       <section class="pane" id="insp">
-        <div class="ph"><button class="pbtn ico" id="inspclose" data-act="inspclose" title="Replier le volet"></button><span id="insp-t">Propriétés</span><span class="sp"></span></div>
+        <div class="ph"><span id="insp-t">Propriétés</span><span class="sp"></span><button class="pbtn ico" id="inspclose" data-act="inspclose" title="Replier le volet"></button></div>
         <div class="pb" id="inspb"></div>
       </section>
-      <button class="ptab right" id="insptab" data-act="inspopen" title="Ouvrir le volet des propriétés"></button>
+      <div id="ptabs"><button class="ptab" id="bintab" data-act="bintoggle" title="Médiathèque"></button><button class="ptab" id="insptab" data-act="insptoggle" title="Projet / propriétés du clip"></button></div>
     </div>
     <div id="hsplit" title="Glisser pour redimensionner la timeline"></div>
     <section id="tl">
@@ -1418,8 +1421,9 @@ const COL = {
 let TLC = null, TLX = null;
 function tAt(x) { return TL.sx + x / TL.z; }
 function xAt(t) { return (t - TL.sx) * TL.z; }
-function trackLayout() { let y = RH - TL.sy; const out = []; for (const tr of P.tracks) { const h = trH(tr); out.push({ tr, y, h }); y += h; } return out; }
-function tracksHeight() { return P.tracks.reduce((s, t) => s + trH(t), 0); }
+function visTracks() { const v = SET.tview || 'av'; return P.tracks.filter(t => v === 'av' || t.kind === v); }
+function trackLayout() { let y = RH - TL.sy; const out = []; for (const tr of visTracks()) { const h = trH(tr); out.push({ tr, y, h }); y += h; } return out; }
+function tracksHeight() { return visTracks().reduce((s, t) => s + trH(t), 0); }
 function trackAtY(y) { for (const L of trackLayout()) if (y >= L.y && y < L.y + L.h) return L.tr; return null; }
 function clipRect(c, lay) { const L = (lay || trackLayout()).find(l => l.tr.id === c.track); if (!L) return null; return { x: xAt(c.start), w: c.dur * TL.z, y: L.y + 2, h: L.h - 4 }; }
 function clipAt(x, y) {
@@ -1848,13 +1852,14 @@ const PAL = [
 ];
 function buildPanes() {
   $('#binimp').innerHTML = ic('import') + 'Importer';
-  $('#binclose').innerHTML = ic('arrowL'); $('#inspclose').innerHTML = ic('arrowR');
+  $('#binclose').innerHTML = ic('arrowR'); $('#inspclose').innerHTML = ic('arrowR');
   $('#bintab').innerHTML = ic('film') + '<span>Médiathèque</span>';
   $('#insptab').innerHTML = ic('sliders') + '<span id="insptab-t">Propriétés</span>';
   applyPanes();
 }
 function applyPanes() {
   const t = $('#top'); t.classList.toggle('binc', !!SET.binClosed); t.classList.toggle('inspc', !!SET.inspClosed);
+  $('#bintab').classList.toggle('on', !SET.binClosed); $('#insptab').classList.toggle('on', !SET.inspClosed);
 }
 function togglePane(k, open) { SET[k] = !open; saveSet(); applyPanes(); }
 function buildTools() {
@@ -1868,6 +1873,7 @@ function updTools() {
   $$('[data-act="magnet"]').forEach(b => b.classList.toggle('on', SET.magnet));
   $$('[data-act="safe"]').forEach(b => b.classList.toggle('on', SET.safe));
   $$('[data-act="loop"]').forEach(b => b.classList.toggle('on', SET.loop));
+  $$('#tview button').forEach(b => b.classList.toggle('on', b.dataset.act === 'tview:' + (SET.tview || 'av')));
   const mg = $('#tlmag'); if (mg) mg.classList.toggle('on', SET.magnet);
   if (TLC) TLC.style.cursor = TL.tool === 'blade' ? 'crosshair' : 'default';
 }
@@ -1878,8 +1884,10 @@ function buildTLBar() {
   $('#tlbar').innerHTML = `
     <button class="tlb" id="tlmag" data-act="magnet" title="Magnétisme (Alt pendant le glisser pour l'ignorer)">${ic('magnet')}Aimant</button>
     <span class="tlsep"></span>
-    <button class="tlb" data-act="addv" title="Ajouter une piste vidéo">${ic('vtrack')}Piste vidéo</button>
-    <button class="tlb" data-act="adda" title="Ajouter une piste audio">${ic('atrack')}Piste audio</button>
+    <div class="seg" id="tview" style="padding:2px" title="Pistes affichées">
+      <button data-act="tview:v" title="Vidéo uniquement">${ic('film')}</button>
+      <button data-act="tview:a" title="Audio uniquement">${ic('music')}</button>
+      <button data-act="tview:av" title="Audio et vidéo">${ic('film')}${ic('music')}</button></div>
     <span class="tsp"></span>
     <button class="tlb ico" data-act="zout" title="Dézoomer (-)">${ic('zout')}</button>
     <input type="range" id="zoom" min="0" max="100" value="40" title="Zoom de la timeline (Ctrl + molette)">
@@ -1890,9 +1898,9 @@ function buildTLBar() {
 function renderHeads() {
   const box = $('#theads'); if (!box || !P) return;
   let y = 0;
-  box.innerHTML = P.tracks.map(tr => {
+  box.innerHTML = visTracks().map(tr => {
     const h = trH(tr); const v = tr.kind === 'v'; const s = `top:${y}px;height:${h}px`; y += h;
-    return `<div class="thd ${tr.kind}" style="${s}" data-tr="${tr.id}"><span class="tn">${trackName(tr)}</span><span class="tsp"></span>
+    return `<div class="thd ${tr.kind}" style="${s}" data-tr="${tr.id}"><span class="tn">${trackName(tr)}</span><span class="tnm${tr.name ? '' : ' tph'}" title="Double-cliquer pour renommer la piste">${esc(tr.name || (v ? 'Vidéo' : 'Audio'))}</span>
       ${v ? `<button data-tk="hide" class="${tr.hide ? 'off' : ''}" title="${tr.hide ? 'Afficher la piste' : 'Masquer la piste'}">${ic(tr.hide ? 'eyeoff' : 'eye')}</button>` : `<button data-tk="mute" class="${tr.mute ? 'off' : ''}" title="${tr.mute ? 'Rétablir le son' : 'Couper le son de la piste'}">${ic(tr.mute ? 'mute' : 'vol')}</button>`}
       <button data-tk="lock" class="${tr.lock ? 'lk' : ''}" title="${tr.lock ? 'Déverrouiller' : 'Verrouiller la piste'}">${ic(tr.lock ? 'lock' : 'unlock')}</button>
       <button data-tk="del" class="del" title="Supprimer la piste">${ic('x')}</button></div>`;
@@ -2855,7 +2863,7 @@ function openGuide(id) {
    ========================================================================== */
 function doAct(a) {
   const [k, v] = a.split(/:(.*)/s);
-  if (!P && !['binclose', 'binopen', 'inspclose', 'inspopen', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
+  if (!P && !['binclose', 'bintoggle', 'inspclose', 'insptoggle', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
   switch (k) {
     case 'undo': return undo();
     case 'redo': return redo();
@@ -2879,9 +2887,10 @@ function doAct(a) {
     case 'hub': return window.open('https://mowiss.github.io/Momohub/', '_blank', 'noopener');
     case 'tool': return setTool(v);
     case 'binclose': return togglePane('binClosed', false);
-    case 'binopen': return togglePane('binClosed', true);
+    case 'bintoggle': return togglePane('binClosed', !!SET.binClosed);
     case 'inspclose': return togglePane('inspClosed', false);
-    case 'inspopen': return togglePane('inspClosed', true);
+    case 'insptoggle': return togglePane('inspClosed', !!SET.inspClosed);
+    case 'tview': SET.tview = v; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
     case 'split': return doSplit(T);
     case 'del': return doDelete(false);
     case 'ripple': return doDelete(true);
@@ -2946,6 +2955,15 @@ document.addEventListener('click', e => {
     closeMenus(); doAct(b.dataset.act); return;
   }
   if (!e.target.closest('.menu')) closeMenus();
+});
+$('#tlheads').addEventListener('wheel', e => { e.preventDefault(); TL.sy += e.deltaY; TLclampScroll(); TLdraw(); }, { passive: false });
+$('#theads').addEventListener('dblclick', e => {
+  const n = e.target.closest('.tnm'); if (!n || !P) return; const tr = trackById(n.closest('[data-tr]').dataset.tr); if (!tr) return;
+  const inp = document.createElement('input'); inp.className = 'tnm'; inp.value = tr.name || ''; inp.placeholder = tr.kind === 'v' ? 'Vidéo' : 'Audio'; inp.maxLength = 40;
+  n.replaceWith(inp); inp.focus(); inp.select();
+  let done = false; const fin = ok => { if (done) return; done = true; if (ok && inp.value.trim() !== (tr.name || '')) act(() => { tr.name = inp.value.trim(); }); else renderHeads(); };
+  inp.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter') fin(true); if (ev.key === 'Escape') fin(false); };
+  inp.onblur = () => fin(true);
 });
 $('#theads').addEventListener('click', e => {
   const b = e.target.closest('[data-tk]'); if (!b) return; const id = b.closest('[data-tr]').dataset.tr;
@@ -3023,10 +3041,9 @@ function splitter(el, axis, get, set) {
     el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up);
   });
 }
-splitter($('#vs1'), 'x', () => SET.binW, v => SET.binW = clamp(v, 150, 480));
 // ceux-ci se tirent dans l'autre sens (le panneau est après le séparateur)
 (function inverseSplitters() {
-  for (const [id, key, axis, lo, hiF] of [['#vs2', 'inspW', 'x', 220, () => 480], ['#hsplit', 'tlH', 'y', 130, () => innerHeight - 260]]) {
+  for (const [id, key, axis, lo, hiF] of [['#vs1', 'binW', 'x', 150, () => 480], ['#vs2', 'inspW', 'x', 220, () => 480], ['#hsplit', 'tlH', 'y', 130, () => innerHeight - 260]]) {
     const n = $(id);
     n.addEventListener('pointerdown', e => {
       e.preventDefault(); n.setPointerCapture(e.pointerId); n.classList.add('on');
