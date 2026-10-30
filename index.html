@@ -237,6 +237,18 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 #hthumb{position:absolute;top:2px;height:7px;border-radius:4px;background:var(--g600);cursor:grab;min-width:24px}
 #hthumb:hover{background:var(--g500)}
 
+/* Volets repliables */
+.ph .pbtn.ico{width:24px;padding:0}
+.ptab{width:26px;flex:none;background:var(--g800);border:0;border-right:1px solid var(--g700);display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;cursor:pointer;color:var(--g400);font:700 11px system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase}
+.ptab.right{border-right:0;border-left:1px solid var(--g700)}
+.ptab:hover{background:var(--g750);color:#fff}
+.ptab svg{width:15px;height:15px}
+.ptab span{writing-mode:vertical-rl;white-space:nowrap}
+.ptab.left span{transform:rotate(180deg)}
+.ptab.flash{animation:pflash .9s}
+@keyframes pflash{30%{background:var(--brand);color:#fff}}
+#top:not(.binc) #bintab,#top:not(.inspc) #insptab{display:none}
+#top.binc #bin,#top.binc #vs1,#top.inspc #insp,#top.inspc #vs2{display:none}
 /* Inspecteur */
 #insp .pb{padding:10px}
 .icard{--tc:#60a5fa;display:flex;align-items:center;gap:9px;font-weight:800;color:#fff;margin:0 0 10px;padding:7px 8px;border-radius:9px;background:color-mix(in srgb,var(--tc) 16%,#1f2937);border:1px solid color-mix(in srgb,var(--tc) 45%,transparent)}
@@ -477,8 +489,9 @@ setTimeout(done,5600);
   <aside class="tools" id="tools"></aside>
   <div id="work">
     <div id="top">
+      <button class="ptab left" id="bintab" data-act="binopen" title="Ouvrir la médiathèque"></button>
       <section class="pane" id="bin">
-        <div class="ph"><span id="bin-t">Médiathèque</span><span class="sp"></span><button class="pbtn" data-act="import" title="Importer des vidéos, sons ou images (Ctrl+I)"></button></div>
+        <div class="ph"><span id="bin-t">Médiathèque</span><span class="sp"></span><button class="pbtn" id="binimp" data-act="import" title="Importer des vidéos, sons ou images (Ctrl+I)"></button><button class="pbtn ico" id="binclose" data-act="binclose" title="Replier la médiathèque"></button></div>
         <div class="binfilt" id="binfilt"><button data-f="all" class="on">Tout</button><button data-f="video">Vidéos</button><button data-f="audio">Sons</button><button data-f="image">Images</button></div>
         <div class="pb" id="binlist"></div>
       </section>
@@ -493,9 +506,10 @@ setTimeout(done,5600);
       </section>
       <div class="vsplit" id="vs2"></div>
       <section class="pane" id="insp">
-        <div class="ph"><span id="insp-t">Propriétés</span><span class="sp"></span></div>
+        <div class="ph"><button class="pbtn ico" id="inspclose" data-act="inspclose" title="Replier le volet"></button><span id="insp-t">Propriétés</span><span class="sp"></span></div>
         <div class="pb" id="inspb"></div>
       </section>
+      <button class="ptab right" id="insptab" data-act="inspopen" title="Ouvrir le volet des propriétés"></button>
     </div>
     <div id="hsplit" title="Glisser pour redimensionner la timeline"></div>
     <section id="tl">
@@ -1829,12 +1843,20 @@ const PAL = [
   ['outils', 'Outils', [['tool:sel', 'cursor', 'Sélection : déplacer et rogner les clips (V)', 'c-blue'], ['tool:blade', 'blade', 'Lame : cliquer sur un clip pour le couper (C)', 'c-red'], ['title:center', 'text', 'Ajouter un titre (T)', 'c-amber']]],
   ['montage', 'Montage', [['split', 'split', 'Scinder à la tête de lecture (S)', 'c-red'], ['del', 'trash', 'Supprimer (Suppr)', 'c-red'], ['ripple', 'ripple', 'Supprimer et refermer le vide (Maj+Suppr)', 'c-orange'],
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
-  ['ajouter', 'Ajouter', [['import', 'import', 'Importer des médias (Ctrl+I)', 'c-blue'], ['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'],
-    ['addv', 'vtrack', 'Ajouter une piste vidéo', 'c-blue'], ['adda', 'atrack', 'Ajouter une piste audio', 'c-green'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
-  ['affichage', 'Affichage', [['magnet', 'magnet', 'Magnétisme : les clips s\'aimantent entre eux', 'c-amber'], ['zout', 'zout', 'Dézoomer la timeline (-)', 'c-gray'], ['zin', 'zin', 'Zoomer la timeline (+)', 'c-gray'],
-    ['zfit', 'fit', 'Voir tout le montage', 'c-gray'], ['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky']]],
-  ['momo', 'MOMO', [['hub', '__mm', 'MOMOgiciels — ouvrir Momohub', 'c-mm'], ['guide', 'guide', 'Guide d\'utilisation (F1)', 'c-amber'], ['settings', 'gear', 'Paramètres', 'c-purple']]]
+  ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
+  ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['hub', '__mm', 'MOMOgiciels — ouvrir Momohub', 'c-mm']]]
 ];
+function buildPanes() {
+  $('#binimp').innerHTML = ic('import') + 'Importer';
+  $('#binclose').innerHTML = ic('arrowL'); $('#inspclose').innerHTML = ic('arrowR');
+  $('#bintab').innerHTML = ic('film') + '<span>Médiathèque</span>';
+  $('#insptab').innerHTML = ic('sliders') + '<span id="insptab-t">Propriétés</span>';
+  applyPanes();
+}
+function applyPanes() {
+  const t = $('#top'); t.classList.toggle('binc', !!SET.binClosed); t.classList.toggle('inspc', !!SET.inspClosed);
+}
+function togglePane(k, open) { SET[k] = !open; saveSet(); applyPanes(); }
 function buildTools() {
   $('#tools').innerHTML = PAL.map(([id, title, btns]) => `<div class="tsec${SET.palC[id] ? ' collapsed' : ''}" data-pal="${id}"><div class="tsec-h">${title}${ic('chev')}</div><div class="tframe"><div class="tgrid">${btns.map(([a, i, t, c]) => `<button class="tool-btn ${c}${a === 'voice' ? ' rec' : ''}" data-act="${a}" title="${esc(t)}">${i === '__mm' ? mmIcon() : ic(i)}</button>`).join('')}</div></div></div>`).join('');
   $('#tools').addEventListener('click', e => { const h = e.target.closest('.tsec-h'); if (h) { const s = h.parentElement; s.classList.toggle('collapsed'); SET.palC[s.dataset.pal] = s.classList.contains('collapsed'); saveSet(); } });
@@ -1846,7 +1868,6 @@ function updTools() {
   $$('[data-act="magnet"]').forEach(b => b.classList.toggle('on', SET.magnet));
   $$('[data-act="safe"]').forEach(b => b.classList.toggle('on', SET.safe));
   $$('[data-act="loop"]').forEach(b => b.classList.toggle('on', SET.loop));
-  const seg = $('#tlseg'); if (seg) { seg.querySelector('[data-act="tool:sel"]').classList.toggle('on', TL.tool === 'sel'); seg.querySelector('[data-act="tool:blade"]').classList.toggle('on', TL.tool === 'blade'); }
   const mg = $('#tlmag'); if (mg) mg.classList.toggle('on', SET.magnet);
   if (TLC) TLC.style.cursor = TL.tool === 'blade' ? 'crosshair' : 'default';
 }
@@ -1855,10 +1876,8 @@ function setTool(t) { TL.tool = t; updTools(); TLdraw(); }
 /* ---------- Barre de timeline + têtes de pistes ---------- */
 function buildTLBar() {
   $('#tlbar').innerHTML = `
-    <div class="seg" id="tlseg" style="padding:2px"><button data-act="tool:sel" title="Sélection (V)">${ic('cursor')}Sélection</button><button data-act="tool:blade" title="Lame (C)">${ic('blade')}Lame</button></div>
     <button class="tlb" id="tlmag" data-act="magnet" title="Magnétisme (Alt pendant le glisser pour l'ignorer)">${ic('magnet')}Aimant</button>
     <span class="tlsep"></span>
-    <button class="tlb" data-act="split" title="Scinder à la tête de lecture (S)">${ic('split')}Scinder</button>
     <button class="tlb" data-act="addv" title="Ajouter une piste vidéo">${ic('vtrack')}Piste vidéo</button>
     <button class="tlb" data-act="adda" title="Ajouter une piste audio">${ic('atrack')}Piste audio</button>
     <span class="tsp"></span>
@@ -2071,7 +2090,9 @@ const tog = (k, label, on) => `<label class="tog">${label}<input type="checkbox"
 function refreshInsp() {
   const box = $('#inspb'); if (!box || !P) return;
   const list = selClips(); const c = list[0];
-  if (!c) { box.innerHTML = projInsp(); $('#insp-t').textContent = 'Projet'; return; }
+  const tt = $('#insptab-t');
+  if (!c) { box.innerHTML = projInsp(); $('#insp-t').textContent = 'Projet'; if (tt) tt.textContent = 'Projet'; return; }
+  if (tt) tt.textContent = 'Propriétés du clip';
   $('#insp-t').textContent = list.length > 1 ? `${list.length} clips sélectionnés` : 'Propriétés du clip';
   const [tn, ti, tcol] = KTYPE[c.type]; const vis = isVisual(c), av = isAV(c), md = c.mediaId ? media(c.mediaId) : null;
   let h = `<div class="icard" style="--tc:${tcol}"><span class="ic">${ic(ti)}</span><input data-k="name" value="${esc(c.name || tn)}" title="Nom du clip"><span class="k">${tn}</span></div>`;
@@ -2834,7 +2855,7 @@ function openGuide(id) {
    ========================================================================== */
 function doAct(a) {
   const [k, v] = a.split(/:(.*)/s);
-  if (!P && !['install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
+  if (!P && !['binclose', 'binopen', 'inspclose', 'inspopen', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
   switch (k) {
     case 'undo': return undo();
     case 'redo': return redo();
@@ -2857,6 +2878,10 @@ function doAct(a) {
     case 'install': return doInstall();
     case 'hub': return window.open('https://mowiss.github.io/Momohub/', '_blank', 'noopener');
     case 'tool': return setTool(v);
+    case 'binclose': return togglePane('binClosed', false);
+    case 'binopen': return togglePane('binClosed', true);
+    case 'inspclose': return togglePane('inspClosed', false);
+    case 'inspopen': return togglePane('inspClosed', true);
     case 'split': return doSplit(T);
     case 'del': return doDelete(false);
     case 'ripple': return doDelete(true);
@@ -3018,7 +3043,7 @@ window.addEventListener('beforeunload', e => { if (DIRTY && P && (P.clips.length
 document.addEventListener('visibilitychange', () => { if (document.hidden && BK.pending && P && (P.clips.length || P.media.length) && SET.backup > 0 && !EXP) backupNow(true); });
 function boot() {
   applySizes();
-  buildHeader(); buildTools(); buildTLBar(); buildTransport();
+  buildHeader(); buildPanes(); buildTools(); buildTLBar(); buildTransport();
   binInit(); viewerInit(); inspInit(); TLinit();
   CX = $('#cv').getContext('2d');
   if (isStandalone()) $('#btn-install').classList.add('hidden');
