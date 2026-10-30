@@ -1848,7 +1848,7 @@ const PAL = [
   ['montage', 'Montage', [['split', 'split', 'Scinder à la tête de lecture (S)', 'c-red'], ['del', 'trash', 'Supprimer (Suppr)', 'c-red'], ['ripple', 'ripple', 'Supprimer et refermer le vide (Maj+Suppr)', 'c-orange'],
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
-  ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['hub', '__mm', 'MOMOgiciels — ouvrir Momohub', 'c-mm']]]
+  ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function buildPanes() {
   $('#binimp').innerHTML = ic('import') + 'Importer';
@@ -2826,7 +2826,7 @@ const GUIDE = [
     <p>Le point jaune devant le nom du projet signale des modifications non enregistrées.</p>
     <h3>Le format du projet</h3>
     <p>Menu <b>Projet</b> &gt; <b>Format et réglages</b> pour passer d'un format paysage à un format portrait ou carré, changer la résolution, la cadence ou la couleur de fond, même en cours de montage.</p>
-    <p>${gk('mm')} ouvre <b>Momohub</b>, la page qui regroupe tous les MOMOgiciels.</p>`],
+`],
   ['clavier', 'keyb', 'Raccourcis', `
     <p class="lead">Les raccourcis qui font gagner le plus de temps.</p>
     <table>
