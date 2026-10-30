@@ -637,7 +637,7 @@ const logoSVG = (cls = '') => `<svg viewBox="0 0 1280 1240"${cls ? ` class="${cl
 /* ---------- Réglages ---------- */
 const SKEY = 'momomov.settings';
 const SET = Object.assign({
-  splash: true, backup: 5, magnet: true, thumbs: true, waves: true, safe: false, exportMute: false,
+  splash: true, startDlg: false, backup: 5, magnet: true, thumbs: true, waves: true, safe: false, exportMute: false,
   tlH: 300, binW: 250, inspW: 290, loop: false, mvol: 1, imgDur: 5, titleDur: 4, follow: true,
   palC: {}, isec: {}
 }, (() => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { return {}; } })());
@@ -2680,6 +2680,7 @@ function settingsDialog() {
     <div class="mb" id="setb">
       <div class="isec"><div class="isec-h">${ic('expand', '', ' style="color:#93c5fd"')}Affichage</div><div class="isec-b">
         ${tog('splash', 'Animation d\'ouverture', SET.splash)}
+        ${tog('startDlg', 'Fenêtre « Nouveau montage » au démarrage', SET.startDlg)}
         ${tog('thumbs', 'Miniatures des vidéos dans la timeline', SET.thumbs)}
         ${tog('waves', 'Formes d\'onde du son dans la timeline', SET.waves)}
         ${tog('safe', 'Cadre de sécurité dans l\'aperçu', SET.safe)}
@@ -3078,7 +3079,7 @@ function boot() {
       else { closeModals(); await importFiles(files, { t: 0 }); }
     });
   }
-  const showStart = () => setTimeout(() => { if (!launched && !P.clips.length && !P.media.length && !MODALS.length) startDialog(false); }, 120);
+  const showStart = () => setTimeout(() => { if (SET.startDlg && !launched && !P.clips.length && !P.media.length && !MODALS.length) startDialog(false); }, 120);
   if (document.getElementById('mv-splash')) window.addEventListener('mv-splash-done', showStart, { once: true }); else showStart();
 }
 boot();
