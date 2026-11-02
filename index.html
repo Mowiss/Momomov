@@ -214,6 +214,9 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .tlb svg{width:15px;height:15px}
 .tlb.on{background:var(--brand);border-color:var(--brand3);color:#fff}
 .tlb.ico{padding:0;width:28px;justify-content:center}
+#tview{gap:2px;padding:0 6px;background:var(--g900)}
+#tview svg{width:17px;height:17px;padding:2px;border-radius:4px;background:var(--brand2);color:#fff;transition:background .15s,color .15s}
+#tview svg.off{background:none;color:var(--g600)}
 #zoom{width:120px;accent-color:var(--brand3)}
 .tlsep{width:1px;height:20px;background:var(--g700)}
 #tlbody{flex:1;display:flex;min-height:0;position:relative}
@@ -2461,7 +2464,7 @@ function updTools() {
   $$('[data-act="magnet"]').forEach(b => b.classList.toggle('on', SET.magnet));
   $$('[data-act="safe"]').forEach(b => b.classList.toggle('on', SET.safe));
   $$('[data-act="loop"]').forEach(b => b.classList.toggle('on', SET.loop));
-  $$('#tview button').forEach(b => b.classList.toggle('on', b.dataset.act === 'tview:' + (SET.tview || 'av')));
+  const tv = $('#tview'); if (tv) { const m = SET.tview || 'av'; tv.querySelector('.tv-v').classList.toggle('off', m === 'a'); tv.querySelector('.tv-a').classList.toggle('off', m === 'v'); }
   const mg = $('#tlmag'); if (mg) mg.classList.toggle('on', SET.magnet);
   if (TLC) TLC.style.cursor = TL.tool === 'blade' ? 'crosshair' : 'default';
 }
@@ -2472,10 +2475,7 @@ function buildTLBar() {
   $('#tlbar').innerHTML = `
     <button class="tlb" id="tlmag" data-act="magnet" title="Magnétisme (Alt pendant le glisser pour l'ignorer)">${ic('magnet')}Aimant</button>
     <span class="tlsep"></span>
-    <div class="seg" id="tview" style="padding:2px" title="Pistes affichées">
-      <button data-act="tview:v" title="Vidéo uniquement">${ic('film')}</button>
-      <button data-act="tview:a" title="Audio uniquement">${ic('music')}</button>
-      <button data-act="tview:av" title="Audio et vidéo">${ic('film')}${ic('music')}</button></div>
+    <button class="tlb tview" id="tview" data-act="tview" title="Pistes affichées : vidéo et audio → vidéo seule → audio seul">${ic('film', 'tv-v')}${ic('music', 'tv-a')}</button>
     <span class="tsp"></span>
     <button class="tlb ico" data-act="zout" title="Dézoomer (-)">${ic('zout')}</button>
     <input type="range" id="zoom" min="0" max="100" value="40" title="Zoom de la timeline (Ctrl + molette)">
@@ -4123,7 +4123,7 @@ function doAct(a) {
     case 'tool': return setTool(v);
     case 'pane': return togglePane(v);
     case 'dvd': return openDvd();
-    case 'tview': SET.tview = v; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
+    case 'tview': SET.tview = ({ av: 'v', v: 'a', a: 'av' })[SET.tview || 'av']; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
     case 'split': return doSplit(T);
     case 'del': return doDelete(false);
     case 'ripple': return doDelete(true);
