@@ -255,6 +255,57 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .rp.open{display:flex}
 .rp:last-child{border-bottom:0}
 #top.rnone #rcol,#top.rnone #vs1{display:none}
+/* Atelier DVD */
+.hbtn.dvdb{gap:5px;padding:0 9px;position:relative}
+.hbtn.dvdb svg{color:#f87171}
+.hbtn.dvdb b{font:900 12.5px/1 system-ui,sans-serif;letter-spacing:.06em;color:var(--g200)}
+.hbtn.dvdb.busy::after{content:"";position:absolute;right:-3px;top:-3px;width:9px;height:9px;border-radius:50%;background:#f87171;border:2px solid var(--g800);animation:recp 1s infinite}
+.dvdeng{display:inline-flex;align-items:center;gap:7px;margin-left:12px;font:500 11.5px system-ui;color:var(--g400);padding:4px 10px;border:1px solid var(--g700);border-radius:99px}
+.dvdeng i{width:8px;height:8px;border-radius:50%;background:var(--g500)}
+.dvdeng[data-s=loading] i{background:#fbbf24;animation:recp 1s infinite}.dvdeng[data-s=ready] i{background:#10b981}.dvdeng[data-s=busy] i{background:#f87171;animation:recp .6s infinite}.dvdeng[data-s=error] i{background:#ef4444}
+.dvd{display:flex;flex:1;min-height:0}
+.dvdset{width:236px;flex:none;border-right:1px solid var(--g700);background:var(--g850);padding:14px;overflow-y:auto}
+.dvdq{display:grid;gap:5px;margin-bottom:10px}
+.dvdq button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;padding:7px 10px;border-radius:9px;border:1px solid var(--g700);background:#111827;color:var(--g300);cursor:pointer}
+.dvdq button small{color:var(--g500);font-size:11px}
+.dvdq button:hover{border-color:var(--g500)}
+.dvdq button.on{border-color:var(--brand3);background:color-mix(in srgb,var(--brand2) 28%,#111827);color:#fff}
+.dvdmain{flex:1;min-width:0;overflow-y:auto;padding:16px 18px;user-select:text}
+.dvdmain.over .dvdempty{border-color:var(--brand3);background:color-mix(in srgb,var(--brand2) 14%,var(--g850))}
+.dvdempty{border:2px dashed var(--g600);border-radius:14px;padding:28px 20px;text-align:center;display:grid;justify-items:center;gap:12px;background:var(--g850);color:var(--g400)}
+.dvdempty h3{margin:0;color:#fff;font-size:18px}
+.dvdempty p{margin:0;max-width:56ch;line-height:1.55}
+.dvdempty code{font:12px ui-monospace,monospace;color:var(--brand3)}
+.dvddisc{width:84px;height:84px}
+.dvdtree{font:12px/1.7 ui-monospace,monospace;text-align:left;background:#111827;border:1px solid var(--g700);border-radius:9px;padding:10px 14px;color:var(--g400)}
+.dvdtree b{color:#fff;font-weight:600}.dvdtree i{font-style:normal;color:var(--brand3)}.dvdtree span{opacity:.6}
+.dvdbar{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:12px}
+#dvdname{width:100%;background:transparent;border:0;border-bottom:1px solid transparent;color:#fff;font:700 20px/1.3 system-ui;padding:2px 0}
+#dvdname:hover{border-bottom-color:var(--g600)}#dvdname:focus{outline:none;border-bottom-color:var(--brand3)}
+.dvdstats{display:flex;gap:18px}
+.dvdstats div{display:flex;flex-direction:column}.dvdstats b{font:600 16px ui-monospace,monospace;color:#fff}.dvdstats span{font-size:11.5px;color:var(--g500)}
+.dvdlh{display:flex;align-items:center;gap:12px;padding:7px 4px;color:var(--g500);font-size:12px;border-bottom:1px solid var(--g700)}
+.lnk{background:none;border:0;color:var(--g400);cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}.lnk:hover{color:#fff}
+.dvdrow{display:grid;grid-template-columns:24px 150px 1fr auto;gap:14px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--g700)}
+.dvdrow.dim{opacity:.55}
+.dchk input{display:none}.dchk i{display:grid;place-items:center;width:20px;height:20px;border:1.5px solid var(--g500);border-radius:5px;cursor:pointer}
+.dchk input:checked+i{background:var(--brand2);border-color:var(--brand3)}.dchk input:checked+i::after{content:"";width:10px;height:6px;border-left:2px solid #fff;border-bottom:2px solid #fff;transform:translateY(-1px) rotate(-45deg)}
+.dthumb{width:150px;aspect-ratio:16/9;border-radius:7px;background:#111827;overflow:hidden;position:relative;display:grid;place-items:center;color:var(--g600)}
+.dthumb img{width:100%;height:100%;object-fit:cover}.dthumb svg{width:26px;height:26px}
+.dthumb span{position:absolute;right:5px;bottom:5px;background:#000b;color:#fff;font:600 10.5px ui-monospace,monospace;padding:2px 5px;border-radius:4px}
+.dinfo{min-width:0;display:grid;gap:4px}
+.dinfo h4{margin:0;font-size:14.5px;color:#fff;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dtag{font:600 10.5px system-ui;padding:3px 7px;border-radius:99px;border:1px solid var(--g600);color:var(--g400)}
+.dtag.ok{color:#34d399;border-color:#065f46}.dtag.err{color:#f87171;border-color:#7f1d1d}.dtag.run{color:#fbbf24;border-color:#78350f}
+.dmeta{display:flex;flex-wrap:wrap;gap:4px 12px;color:var(--g400);font-size:12px}
+.dchaps{display:flex;flex-wrap:wrap;gap:4px}.dchaps span{font:10.5px ui-monospace,monospace;color:var(--g400);background:#111827;border:1px solid var(--g700);padding:2px 5px;border-radius:4px}
+.dprog{display:grid;gap:4px;margin-top:4px}.dprog .prog{height:7px}.dpt{font:11.5px ui-monospace,monospace;color:var(--g400)}
+.derr{color:#f87171;font-size:12px}
+.douts{display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.dout{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--g400)}.dout b{color:#fff}
+.dout .ibtn{padding:4px 9px}.dout .ibtn:disabled{opacity:.6;cursor:default;border-color:#065f46;color:#34d399}
+.dvdfoot{align-items:center}
+@media (max-width:900px){.dvdset{display:none}.dvdrow{grid-template-columns:24px 1fr}.dthumb,.dinfo,.dact{grid-column:2}}
 /* Catalogue des transitions */
 #trlist,#fxlist{padding:8px 8px 14px}
 .efrow{display:flex;align-items:center;gap:6px;margin:8px 0 2px}
@@ -663,6 +714,7 @@ const IC = {
   none: '<circle cx="12" cy="12" r="8"/><path d="m6.5 17.5 11-11"/>',
   type: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/><path d="M17 15h4" stroke-dasharray="1.5 1.5"/>',
   scroll: '<path d="M12 3v18M8 7l4-4 4 4"/><path d="M5 12h4M15 12h4M5 16h4M15 16h4"/>',
+  disc: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/>',
   hd: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9v6M6 12h4M10 9v6M14 9v6h2a3 3 0 0 0 0-6z"/>'
 };
 function ic(n, cls = '', extra = '') {
@@ -2275,6 +2327,7 @@ function buildHeader() {
         <hr>${mb('purge', 'Retirer les médias inutilisés', '', 'trash')}
       </div></div>`;
   $('#hright').innerHTML = `
+    <button class="hbtn dvdb" id="btn-dvd" title="Atelier DVD : convertir un DVD (dossier VIDEO_TS) en MP4 et l'ajouter au montage" data-act="dvd">${dvdIcon()}<b>DVD</b></button>
     <button class="hbtn ico" title="Plein écran (F11)" data-act="fullscreen">${ic('expand')}</button>
     <div class="dd"><button class="hbtn ico" data-menu="m-file" title="Fichier : ouvrir, enregistrer, enregistrer sous, backup auto">${ic('save')}</button>
       <div class="menu right hidden" id="m-file">
@@ -3129,12 +3182,17 @@ async function ffLoad(onStatus) {
   })();
   try { return await FF.loading; } catch (e) { FF.loading = null; throw e; }
 }
+FF.chain = Promise.resolve();
+function ffLock(fn) { const r = FF.chain.then(fn, fn); FF.chain = r.catch(() => { }); return r; }
 function ffReset() { try { FF.ff && FF.ff.terminate(); } catch (e) { } FF.ff = null; FF.loading = null; }
 const MIMEX = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', mkv: 'video/x-matroska', webm: 'video/webm', avi: 'video/x-msvideo', wmv: 'video/x-ms-wmv', flv: 'video/x-flv', mpg: 'video/mpeg', ogv: 'video/ogg', gif: 'image/gif', webp: 'image/webp', png: 'image/png', mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4', ogg: 'audio/ogg', opus: 'audio/ogg', aiff: 'audio/aiff' };
 /* conversion : blob -> blob ; onProg(0..1) ; FF.cancel interrompt */
 async function ffRun(blob, inExt, outExt, args, onProg, onStatus) {
   const ff = await ffLoad(onStatus);
   onStatus && onStatus('Conversion…', 0);
+  return ffLock(() => ffRun0(ff, blob, inExt, outExt, args, onProg));
+}
+async function ffRun0(ff, blob, inExt, outExt, args, onProg) {
   const id = uid(), inN = `in_${id}.${inExt || 'bin'}`, outN = `out_${id}.${outExt}`;
   await ff.writeFile(inN, new Uint8Array(await blob.arrayBuffer()));
   const h = ({ progress }) => onProg && onProg(clamp(progress, 0, 1)); ff.on('progress', h);
@@ -3700,6 +3758,18 @@ const GUIDE = [
     <h3>Le format du projet</h3>
     <p>Dans l'onglet <b>Projet</b> (sans clip sélectionné), le bouton <b>Changer le format…</b> permet de passer d'un format paysage à un format portrait ou carré, changer la résolution, la cadence ou la couleur de fond, même en cours de montage.</p>
 `],
+  ['dvd', 'disc', 'Atelier DVD', `
+    <p class="lead">Le bouton <b>DVD</b> de l'en-tête ouvre l'atelier qui transforme un DVD vidéo en fichiers MP4, rangés directement dans la médiathèque.</p>
+    <h3>1. Copier le DVD</h3>
+    <p>Ouvrez le DVD dans l'explorateur et copiez le dossier <b>VIDEO_TS</b> sur votre disque : la lecture est bien plus rapide depuis le disque dur que depuis le lecteur.</p>
+    <h3>2. Ouvrir le dossier</h3>
+    <p>Glissez le dossier dans l'atelier, ou cliquez sur <b>Choisir le dossier</b>. Chaque <b>titre</b> correspond à un groupe de fichiers <b>VTS_xx_…VOB</b>. L'atelier lit les fichiers IFO pour connaître la durée et les chapitres, puis affiche une vignette. Les menus et écrans noirs de moins de 5 secondes sont masqués.</p>
+    <h3>3. Convertir</h3>
+    <ul><li>Cochez les titres voulus, puis <b>Convertir en MP4</b>. Les titres passent l'un après l'autre ; vous pouvez fermer l'atelier et continuer à monter pendant ce temps (un point rouge sur le bouton DVD signale une conversion en cours).</li>
+    <li>À gauche, choisissez la qualité, le son et le <b>désentrelacement</b> (supprime les lignes en peigne des caméscopes).</li>
+    <li><b>Un fichier par chapitre</b> découpe chaque titre selon les chapitres du DVD.</li>
+    <li>Une fois prêts, les MP4 vont dans la <b>médiathèque</b> (ou avec le bouton <b>Ajouter au montage</b>) et peuvent aussi être téléchargés.</li></ul>
+    <div class="tip"><b>Bon à savoir :</b> comptez de 0,5 à 2 fois la durée du film selon l'ordinateur et la qualité. Au-delà d'environ 1 h 30 par titre, la mémoire peut manquer : activez alors « Un fichier par chapitre ». Les DVD du commerce protégés contre la copie ne sont pas pris en charge.</div>`],
   ['clavier', 'keyb', 'Raccourcis', `
     <p class="lead">Les raccourcis qui font gagner le plus de temps.</p>
     <table>
@@ -3735,11 +3805,303 @@ function openGuide(id) {
 }
 
 /* ==========================================================================
+   Atelier DVD (ex-MomoDVD) : dossier VIDEO_TS -> titres -> MP4 -> médiathèque
+   ========================================================================== */
+const DVDSET = Object.assign({ quality: 'balanced', deint: true, abr: '160', auto: false, toBin: true, hideShort: true, split: false },
+  (() => { try { return JSON.parse(localStorage.getItem('momomov.dvd') || '{}'); } catch (e) { return {}; } })());
+const saveDvdSet = () => { try { localStorage.setItem('momomov.dvd', JSON.stringify(DVDSET)); } catch (e) { } };
+const DVDPRE = { fast: { preset: 'ultrafast', crf: 22, n: 'Rapide' }, balanced: { preset: 'veryfast', crf: 21, n: 'Équilibrée' }, best: { preset: 'medium', crf: 19, n: 'Maximale' } };
+const DVD = { name: 'DVD', titles: [], queue: [], busy: false, ui: null, engine: 'off', engTxt: 'Convertisseur non chargé', seq: 0 };
+const dvdIcon = () => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8" opacity=".55"/><path d="M5.2 12A6.8 6.8 0 0 0 12 18.8" opacity=".55"/></svg>`;
+const fmtSize = b => b >= 1e9 ? (b / 1e9).toFixed(2).replace('.', ',') + ' Go' : b >= 1e6 ? Math.round(b / 1e6) + ' Mo' : Math.max(1, Math.round(b / 1e3)) + ' ko';
+const fmtEta = s => !isFinite(s) || s <= 0 ? '' : s < 60 ? 'moins d\'1 min' : (m => m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'))(Math.round(s / 60));
+const dvdSafe = s => (s || 'DVD').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'DVD';
+
+/* ---------- Lecture des IFO (durées et chapitres) ---------- */
+const bcd = b => (b >> 4) * 10 + (b & 15);
+function dvdTime(dv, o) { const fb = dv.getUint8(o + 3), fps = (fb >> 6) === 3 ? 30 : 25; return bcd(dv.getUint8(o)) * 3600 + bcd(dv.getUint8(o + 1)) * 60 + bcd(dv.getUint8(o + 2)) + bcd(fb & 0x3f) / fps; }
+async function parseVtsIfo(file) {
+  const buf = await file.arrayBuffer(), dv = new DataView(buf);
+  if (new TextDecoder().decode(new Uint8Array(buf, 0, 12)) !== 'DVDVIDEO-VTS') throw new Error('IFO non reconnu');
+  const base = dv.getUint32(0xCC) * 2048; if (!base || base + 8 > buf.byteLength) throw new Error('table absente');
+  const n = dv.getUint16(base), pgcs = [];
+  for (let i = 0; i < n; i++) {
+    const e = base + 8 + i * 8, cat = dv.getUint32(e), p = base + dv.getUint32(e + 4);
+    if (p + 0xEC > buf.byteLength) continue;
+    const nProg = dv.getUint8(p + 2), nCell = dv.getUint8(p + 3), progOff = dv.getUint16(p + 0xE6), cellOff = dv.getUint16(p + 0xE8), cells = [];
+    if (cellOff && nCell) for (let c = 0; c < nCell; c++) { const co = p + cellOff + c * 24; if (co + 8 > buf.byteLength) break; const cc = dv.getUint8(co); cells.push(((cc >> 4) & 3) === 1 && ((cc >> 6) & 3) > 1 ? 0 : dvdTime(dv, co + 4)); }
+    let dur = dvdTime(dv, p + 4); if (!dur && cells.length) dur = cells.reduce((a, b) => a + b, 0);
+    const starts = [];
+    if (progOff && nProg) for (let k = 0; k < nProg; k++) { const en = dv.getUint8(p + progOff + k); let t = 0; for (let c = 0; c < en - 1 && c < cells.length; c++) t += cells[c]; starts.push(t); }
+    pgcs.push({ entry: !!(cat & 0x80000000), dur, starts: starts.length ? starts : [0] });
+  }
+  let use = pgcs.filter(p => p.entry && p.dur > .5); if (!use.length) use = pgcs.filter(p => p.dur > .5);
+  if (use.length > 1) { const big = use.reduce((a, b) => b.dur > a.dur ? b : a), rest = use.reduce((a, b) => a + b.dur, 0) - big.dur; if (big.dur >= rest * .95) use = [big]; }
+  let off = 0; const ch = [];
+  for (const p of use) { for (const s of p.starts) { const t = off + s; if (!ch.length || t - ch[ch.length - 1] > .5) ch.push(t); } off += p.dur; }
+  if (!ch.length || ch[0] > .5) ch.unshift(0); else ch[0] = 0;
+  return { duration: off, chapters: ch };
+}
+
+/* ---------- Moteur : exécution avec les VOB montés en lecture directe ---------- */
+async function dvdEngine() {
+  if (FF.ff) { setDvdEngine('ready', 'Convertisseur prêt'); return FF.ff; }
+  setDvdEngine('loading', 'Chargement du convertisseur…');
+  try { const ff = await ffLoad((s, p) => setDvdEngine('loading', p ? `Téléchargement du convertisseur ${Math.round(p)} %` : s)); setDvdEngine('ready', 'Convertisseur prêt'); return ff; }
+  catch (e) { setDvdEngine('error', 'Convertisseur indisponible'); toast('Le convertisseur n\'a pas pu se charger : vérifiez la connexion internet', 'err', 5000); throw e; }
+}
+function setDvdEngine(s, t) { DVD.engine = s; DVD.engTxt = t; const e = DVD.ui && $('#dvdeng', DVD.ui.el); if (e) { e.dataset.s = s; e.lastChild.textContent = t; } updDvdBtn(); }
+async function dvdExec(files, args, onLog) {
+  const ff = await dvdEngine();
+  return ffLock(async () => {
+    const dir = '/dvdin';
+    try { await ff.createDir(dir); } catch (e) { }
+    try { await ff.createDir('/dvdout'); } catch (e) { }
+    await ff.mount('WORKERFS', { files }, dir);
+    const h = ({ message }) => onLog && onLog(message); ff.on('log', h);
+    let ret = -1, outs = [];
+    try {
+      ret = await ff.exec(args);
+      for (const n of await ff.listDir('/dvdout')) { if (n.isDir) continue; const d = await ff.readFile('/dvdout/' + n.name); try { await ff.deleteFile('/dvdout/' + n.name); } catch (e) { } outs.push({ name: n.name, data: d }); }
+    } finally { ff.off('log', h); try { await ff.unmount(dir); } catch (e) { } }
+    return { ret, outs };
+  });
+}
+
+/* ---------- File d'attente ---------- */
+function dvdPump() {
+  if (DVD.busy) return;
+  let i = DVD.queue.findIndex(j => j.kind === 'convert'); if (i < 0) i = 0;
+  const job = DVD.queue.splice(i, 1)[0]; if (!job) return;
+  DVD.busy = true; job.start && job.start();
+  dvdExec(job.files, job.args, m => job.log(m))
+    .then(r => job.done(r)).catch(e => job.done({ ret: -1, outs: [], error: e && e.message || String(e) }))
+    .finally(() => { DVD.busy = false; if (FF.ff) setDvdEngine('ready', 'Convertisseur prêt'); dvdPump(); });
+}
+function dvdThumb(t, ss) {
+  if (!t.vobs.length) return;
+  if (ss == null) ss = t.duration ? Math.min(30, Math.max(1, t.duration * .15)) : 8;
+  const f = t.vobs[0], lines = [];
+  DVD.queue.push({
+    kind: 'thumb', files: [f],
+    args: ['-hide_banner', '-ss', ss.toFixed(2), '-i', '/dvdin/' + f.name, '-frames:v', '1', '-vf', 'scale=iw*sar:ih,scale=320:-2', '-q:v', '5', '/dvdout/thumb.jpg'],
+    log: m => lines.push(m),
+    done: r => {
+      const had = t.duration; dvdProbe(t, lines);
+      if (!had && t.duration && t.duration < 5 && t.status === 'idle') { t.selected = false; if (DVDSET.hideShort) { const o = r.outs.find(x => x.name === 'thumb.jpg'); if (o) t.thumb = URL.createObjectURL(new Blob([o.data.buffer], { type: 'image/jpeg' })); dvdRender(); return; } }
+      const o = r.outs.find(x => x.name === 'thumb.jpg');
+      if (o) t.thumb = URL.createObjectURL(new Blob([o.data.buffer], { type: 'image/jpeg' })); else if (ss > 0) dvdThumb(t, 0);
+      dvdRow(t); dvdStats();
+    }
+  });
+  dvdPump();
+}
+function dvdProbe(t, lines) {
+  const txt = lines.join('\n');
+  const v = txt.match(/Video: (\w+)[^\n]*?(\d{3,4})x(\d{3,4})(?:[^\n]*?DAR (\d+:\d+))?/); if (v) t.meta.video = { codec: v[1], w: +v[2], h: +v[3], dar: v[4] || '' };
+  const a = txt.match(/Audio: (\w+)[^\n]*?(\d+) Hz(?:, ([\w.() ]+?))?,/); if (a) t.meta.audio = { codec: a[1], layout: (a[3] || '').trim() };
+  if (!t.duration) { const d = txt.match(/Duration: (\d+):(\d+):([\d.]+)/); if (d) { t.duration = (+d[1] * 3600 + +d[2] * 60 + +d[3]) * (t.size / (t.vobs[0].size || 1)); t.durEst = true; } }
+}
+function dvdConvert(t) {
+  if (['queued', 'running'].includes(t.status)) return;
+  const p = DVDPRE[DVDSET.quality] || DVDPRE.balanced, base = dvdSafe(DVD.name) + '_Titre' + String(t.vts).padStart(2, '0'), split = DVDSET.split && t.chapters.length > 1;
+  const args = ['-hide_banner', '-fflags', '+genpts', '-i', 'concat:' + t.vobs.map(f => '/dvdin/' + f.name).join('|'), '-map', '0:v:0', '-map', '0:a:0?'];
+  if (DVDSET.deint) args.push('-vf', 'yadif=0:-1:1');
+  args.push('-c:v', 'libx264', '-preset', p.preset, '-crf', String(p.crf), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', DVDSET.abr + 'k', '-ac', '2');
+  if (split) { const times = t.chapters.slice(1).map(x => x.toFixed(3)).join(','); args.push('-force_key_frames', times, '-f', 'segment', '-segment_times', times, '-reset_timestamps', '1', '-segment_start_number', '1', '-segment_format', 'mp4', '-segment_format_options', 'movflags=+faststart', '/dvdout/' + base + '_Chap%02d.mp4'); }
+  else args.push('-movflags', '+faststart', '/dvdout/' + base + '.mp4');
+  t.status = 'queued'; t.error = ''; t.progress = 0; t.progTxt = 'En attente…';
+  const tail = [];
+  const job = {
+    kind: 'convert', t, files: t.vobs, args,
+    start: () => { t.status = 'running'; t.t0 = performance.now(); t.progTxt = 'Démarrage…'; t.job = job; setDvdEngine('busy', 'Conversion en cours'); dvdRow(t); dvdDock(); },
+    log: msg => {
+      tail.push(msg); if (tail.length > 30) tail.shift();
+      const m = msg.match(/time=(\d+):(\d+):([\d.]+)/); if (!m) return;
+      const sec = +m[1] * 3600 + +m[2] * 60 + +m[3], sp = parseFloat((msg.match(/speed=\s*([\d.]+)x/) || [])[1] || 0), dur = t.duration || 0;
+      t.progress = dur ? Math.min(.995, sec / dur) : 0;
+      const eta = dur && sp ? (dur - sec) / sp : NaN;
+      t.progTxt = (dur ? Math.floor(t.progress * 100) + ' %' : fmtDur(sec)) + (sp ? ' · ×' + sp.toFixed(1).replace('.', ',') : '') + (isFinite(eta) ? ' · reste ' + fmtEta(eta) : '');
+      dvdProg(t);
+    },
+    done: async r => {
+      t.job = null; if (job.cancelled) return;
+      const mp4 = r.outs.filter(o => /\.mp4$/i.test(o.name) && o.data.byteLength > 1024).sort((a, b) => a.name.localeCompare(b.name));
+      if (r.ret === 0 && mp4.length) {
+        t.status = 'done'; t.progress = 1;
+        t.outputs.forEach(o => URL.revokeObjectURL(o.url));
+        t.outputs = mp4.map(o => { const blob = new Blob([o.data.buffer], { type: 'video/mp4' }); return { name: o.name, size: blob.size, blob, url: URL.createObjectURL(blob), inBin: false }; });
+        t.progTxt = 'Terminé en ' + (fmtEta((performance.now() - t.t0) / 1000) || '< 1 min').replace('moins d\'1 min', '< 1 min');
+        if (DVDSET.auto) t.outputs.forEach((o, i) => setTimeout(() => download(o.blob, o.name), i * 600));
+        if (DVDSET.toBin) for (const o of t.outputs) await dvdToBin(t, o, true);
+        toast(`Titre ${t.vts} du DVD converti${DVDSET.toBin ? ' et ajouté à la médiathèque' : ''}`, 'ok', 4000);
+      } else {
+        t.status = 'error';
+        const why = r.error || tail.filter(l => /error|invalid|failed|abort|memory/i.test(l)).slice(-2).join(' ') || 'code ' + r.ret;
+        t.error = /memory|OOM|Cannot enlarge|out of bounds/i.test(why) ? 'Mémoire insuffisante pour ce titre. Activez « Un fichier par chapitre » ou la qualité Rapide, puis relancez.' : 'La conversion a échoué : ' + why.slice(0, 220);
+        if (r.error) ffReset();
+      }
+      dvdRow(t); dvdDock();
+    }
+  };
+  DVD.queue.push(job); dvdRow(t); dvdDock(); dvdPump();
+}
+function dvdCancel(t) {
+  const qi = DVD.queue.findIndex(j => j.kind === 'convert' && j.t === t); if (qi >= 0) DVD.queue.splice(qi, 1);
+  if (t.status === 'running' && t.job) { t.job.cancelled = true; ffReset(); DVD.busy = false; setDvdEngine('off', 'Convertisseur arrêté'); setTimeout(dvdPump, 50); }
+  t.status = 'idle'; t.progress = 0; t.progTxt = ''; t.job = null; dvdRow(t); dvdDock(); toast('Conversion du titre ' + t.vts + ' annulée');
+}
+async function dvdToBin(t, o, quiet) {
+  if (o.inBin || !P) return;
+  begin(); const md = await addMedia(o.blob, o.name, { kind: 'video' }); commit(); refreshAll();
+  if (md) { o.inBin = true; if (!quiet) toast(`« ${o.name} » ajouté à la médiathèque`, 'ok'); }
+  dvdRow(t);
+}
+
+/* ---------- Chargement du dossier ---------- */
+async function dvdLoad(list) {
+  const files = Array.from(list).filter(f => f && f.name), groups = new Map(); let root = '';
+  for (const f of files) {
+    const m = f.name.match(/^VTS_(\d{2})_(\d)\.(VOB|IFO|BUP)$/i), rel = f.webkitRelativePath || f._rel || '';
+    if (!root && rel) { const parts = rel.split('/'); root = parts.length > 2 ? parts[parts.length - 3] : parts[0]; if (/^VIDEO_TS$/i.test(root)) root = ''; }
+    if (!m) continue;
+    const vts = +m[1], part = +m[2], ext = m[3].toUpperCase();
+    if (!groups.has(vts)) groups.set(vts, { vts, vobs: [], ifo: null, bup: null });
+    const g = groups.get(vts); if (ext === 'VOB' && part > 0) g.vobs.push(f); else if (ext === 'IFO') g.ifo = f; else if (ext === 'BUP') g.bup = f;
+  }
+  const valid = [...groups.values()].filter(g => g.vobs.length).sort((a, b) => a.vts - b.vts);
+  if (!valid.length) { toast('Aucune vidéo trouvée : choisissez le dossier VIDEO_TS du DVD', 'err', 4500); return; }
+  if (DVD.busy || DVD.queue.length) { DVD.queue.length = 0; if (DVD.busy) { ffReset(); DVD.busy = false; } }
+  DVD.titles.forEach(t => { t.thumb && URL.revokeObjectURL(t.thumb); t.outputs.forEach(o => URL.revokeObjectURL(o.url)); });
+  DVD.name = root || 'DVD'; DVD.titles = [];
+  for (const g of valid) {
+    g.vobs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const t = { vts: g.vts, vobs: g.vobs, size: g.vobs.reduce((a, f) => a + f.size, 0), duration: 0, chapters: [0], selected: true, thumb: null, meta: {}, status: 'idle', progress: 0, progTxt: '', outputs: [], error: '' };
+    for (const src of [g.ifo, g.bup]) { if (!src) continue; try { const r = await parseVtsIfo(src); t.duration = r.duration; t.chapters = r.chapters; break; } catch (e) { } }
+    if (t.duration && t.duration < 5) t.selected = false;
+    DVD.titles.push(t);
+  }
+  dvdRender();
+  try { await dvdEngine(); } catch (e) { return; }
+  for (const t of DVD.titles) dvdThumb(t);
+}
+async function readEntries(entry, out, path) {
+  if (entry.isFile) await new Promise(res => entry.file(f => { f._rel = path + f.name; out.push(f); res(); }, res));
+  else if (entry.isDirectory) { const r = entry.createReader(); let b; do { b = await new Promise(res => r.readEntries(res, () => res([]))); for (const e of b) await readEntries(e, out, path + entry.name + '/'); } while (b.length); }
+}
+
+/* ---------- Fenêtre ---------- */
+function updDvdBtn() { const b = $('#btn-dvd'); if (b) b.classList.toggle('busy', DVD.titles.some(t => t.status === 'running' || t.status === 'queued')); }
+const dvdVisible = () => DVD.titles.filter(t => !(DVDSET.hideShort && t.duration && t.duration < 5));
+function openDvd() {
+  if (DVD.ui && DVD.ui.el.isConnected) return;
+  const m = modal(`<div class="mh">${dvdIcon().replace('<svg', '<svg style="color:#f87171"')}Atelier DVD<span class="dvdeng" id="dvdeng" data-s="${DVD.engine}" title="Convertisseur (ffmpeg)"><i></i>${esc(DVD.engTxt)}</span><button class="x" data-close>${ic('x')}</button></div>
+    <div class="dvd">
+      <aside class="dvdset">
+        <div class="isub" style="margin-top:0">Qualité de la vidéo</div>
+        <div class="dvdq">${Object.entries(DVDPRE).map(([k, p]) => `<button data-dq="${k}" class="${DVDSET.quality === k ? 'on' : ''}"><b>${p.n}</b><small>${{ fast: 'Fichiers plus gros, ~2× plus vite', balanced: 'Recommandée', best: 'Plus lent, détails mieux gardés' }[k]}</small></button>`).join('')}</div>
+        <div class="f"><label>Qualité du son</label><select id="dvdabr">${['128', '160', '192', '256'].map(v => `<option value="${v}"${v === DVDSET.abr ? ' selected' : ''}>${v} kb/s</option>`).join('')}</select></div>
+        ${tog('dvd:deint', 'Supprimer l\'entrelacement', DVDSET.deint)}
+        ${tog('dvd:split', 'Un fichier par chapitre', DVDSET.split)}
+        ${tog('dvd:toBin', 'Ajouter à la médiathèque', DVDSET.toBin)}
+        ${tog('dvd:auto', 'Télécharger chaque MP4', DVDSET.auto)}
+        ${tog('dvd:hideShort', 'Masquer les titres de moins de 5 s', DVDSET.hideShort)}
+      </aside>
+      <section class="dvdmain" id="dvdmain"></section>
+    </div>
+    <div class="mf dvdfoot" id="dvdfoot"></div>`, { wide: true, onClose: () => { DVD.ui = null; } });
+  DVD.ui = m;
+  const el = m.el;
+  el.querySelector('.dvdset').addEventListener('change', e => {
+    const k = e.target.dataset.k; if (k && k.startsWith('dvd:')) { DVDSET[k.slice(4)] = e.target.checked; saveDvdSet(); if (k === 'dvd:hideShort') dvdRender(); else dvdDock(); }
+    if (e.target.id === 'dvdabr') { DVDSET.abr = e.target.value; saveDvdSet(); }
+  });
+  el.querySelector('.dvdq').addEventListener('click', e => { const b = e.target.closest('[data-dq]'); if (!b) return; DVDSET.quality = b.dataset.dq; saveDvdSet(); $$('.dvdq button', el).forEach(x => x.classList.toggle('on', x === b)); dvdDock(); });
+  const zone = el.querySelector('.modal');
+  zone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.querySelector('#dvdmain').classList.add('over'); });
+  zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) el.querySelector('#dvdmain').classList.remove('over'); });
+  zone.addEventListener('drop', async e => {
+    e.preventDefault(); e.stopPropagation(); el.querySelector('#dvdmain').classList.remove('over'); $('#dropzone').classList.add('hidden');
+    const items = e.dataTransfer.items, out = [];
+    if (items && items.length && items[0].webkitGetAsEntry) { for (const en of [...items].map(i => i.webkitGetAsEntry()).filter(Boolean)) await readEntries(en, out, ''); }
+    else out.push(...e.dataTransfer.files);
+    dvdLoad(out);
+  });
+  dvdRender();
+}
+function dvdRender() {
+  const box = DVD.ui && $('#dvdmain', DVD.ui.el); if (!box) return;
+  if (!DVD.titles.length) {
+    box.innerHTML = `<div class="dvdempty">
+      <svg viewBox="0 0 92 92" class="dvddisc"><circle cx="46" cy="46" r="44" fill="#2b3544"/><circle cx="46" cy="46" r="32" fill="none" stroke="#9aa1ff" stroke-opacity=".18"/><circle cx="46" cy="46" r="22" fill="none" stroke="#9aa1ff" stroke-opacity=".18"/><circle cx="46" cy="46" r="12" fill="#1f2937" stroke="#4f57c9" stroke-width="2"/><circle cx="46" cy="46" r="4" fill="#111827"/></svg>
+      <h3>Glissez ici le dossier de votre DVD</h3>
+      <p>Copiez d'abord le DVD sur votre disque, puis déposez le dossier <code>VIDEO_TS</code> (ou le dossier qui le contient). Les vidéos sont converties en MP4 sur votre ordinateur, puis rangées dans la médiathèque.</p>
+      <div class="dvdtree"><b>VIDEO_TS/</b><br>&nbsp;├ VIDEO_TS.IFO &nbsp;<span>menu principal</span><br>&nbsp;├ VTS_01_0.VOB &nbsp;<span>menu, ignoré</span><br>&nbsp;├ VTS_01_0.IFO &nbsp;<span>durées et chapitres</span><br>&nbsp;├ <i>VTS_01_1.VOB</i> &nbsp;<span>vidéo, 1 Go max</span><br>&nbsp;└ <i>VTS_01_2.VOB</i> &nbsp;<span>suite du titre 1</span></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn pri" id="dvddir">${ic('folder')}Choisir le dossier</button><button class="btn" id="dvdfiles">${ic('film')}Choisir des fichiers VOB / IFO</button></div>
+    </div>`;
+  } else {
+    const vis = dvdVisible(), hidden = DVD.titles.length - vis.length;
+    box.innerHTML = `<div class="dvdbar"><div style="flex:1;min-width:200px"><div class="isub" style="margin:0 0 2px">DVD chargé · nom des fichiers</div><input id="dvdname" value="${esc(DVD.name)}" spellcheck="false"></div>
+      <div class="dvdstats"><div><b>${vis.length}</b><span>titres</span></div><div><b>${fmtDur(vis.reduce((a, t) => a + (t.duration || 0), 0))}</b><span>durée totale</span></div><div><b>${fmtSize(DVD.titles.reduce((a, t) => a + t.size, 0))}</b><span>données DVD</span></div></div>
+      <button class="btn" id="dvddir">${ic('folder')}Autre DVD</button></div>
+      <div class="dvdlh"><span>Titres du disque</span><span style="flex:1"></span><button class="lnk" id="dvdall">Tout cocher</button><button class="lnk" id="dvdnone">Tout décocher</button></div>
+      <div id="dvdlist"></div>
+      ${hidden ? `<div class="dvdlh"><span>${hidden} titre${hidden > 1 ? 's' : ''} de moins de 5 s masqué${hidden > 1 ? 's' : ''} (menus, écrans noirs)</span><span style="flex:1"></span><button class="lnk" id="dvdshow">Afficher</button></div>` : ''}`;
+    const list = $('#dvdlist', box);
+    for (const t of vis) { t.node = document.createElement('div'); t.node.className = 'dvdrow'; list.appendChild(t.node); dvdRow(t); }
+    $('#dvdname', box).oninput = e => { DVD.name = e.target.value.trim() || 'DVD'; };
+    $('#dvdall', box).onclick = () => { vis.forEach(t => t.selected = true); dvdRender(); };
+    $('#dvdnone', box).onclick = () => { DVD.titles.forEach(t => t.selected = false); dvdRender(); };
+    const sh = $('#dvdshow', box); if (sh) sh.onclick = () => { DVDSET.hideShort = false; saveDvdSet(); const c = $('[data-k="dvd:hideShort"]', DVD.ui.el); if (c) c.checked = false; dvdRender(); };
+  }
+  const pickDir = () => { const i = document.createElement('input'); i.type = 'file'; i.webkitdirectory = true; i.multiple = true; i.onchange = () => dvdLoad(i.files); i.click(); };
+  const pickFiles = () => { const i = document.createElement('input'); i.type = 'file'; i.multiple = true; i.accept = '.vob,.ifo,.bup,.VOB,.IFO,.BUP'; i.onchange = () => dvdLoad(i.files); i.click(); };
+  const d = $('#dvddir', box); if (d) d.onclick = pickDir; const f = $('#dvdfiles', box); if (f) f.onclick = pickFiles;
+  dvdDock();
+}
+function dvdRow(t) {
+  const n = t.node; if (!n || !n.isConnected) return;
+  const busy = t.status === 'queued' || t.status === 'running', v = t.meta.video, a = t.meta.audio, nCh = t.chapters.length;
+  n.classList.toggle('dim', !t.selected && t.status === 'idle');
+  const tag = { queued: '<span class="dtag run">En attente</span>', running: '<span class="dtag run">Conversion</span>', done: '<span class="dtag ok">MP4 prêt</span>', error: '<span class="dtag err">Échec</span>' }[t.status] || '';
+  n.innerHTML = `<label class="dchk"><input type="checkbox" ${t.selected ? 'checked' : ''} ${busy ? 'disabled' : ''}><i></i></label>
+    <div class="dthumb">${t.thumb ? `<img src="${t.thumb}" alt="">` : ic('film')}${t.duration ? `<span>${t.durEst ? '≈ ' : ''}${fmtDur(t.duration)}</span>` : ''}</div>
+    <div class="dinfo"><h4>Titre ${t.vts} ${tag}</h4>
+      <div class="dmeta"><span>${nCh} chapitre${nCh > 1 ? 's' : ''}</span><span>${t.vobs.length} fichier${t.vobs.length > 1 ? 's' : ''} VOB · ${fmtSize(t.size)}</span>${v ? `<span>${v.w}×${v.h}${v.dar ? ' · ' + v.dar : ''}</span>` : ''}${a ? `<span>son ${esc(a.codec.toUpperCase())}${a.layout ? ' ' + esc(a.layout) : ''}</span>` : ''}</div>
+      ${t.status === 'idle' && nCh > 1 ? `<div class="dchaps">${t.chapters.slice(0, 24).map((c, i) => `<span>${String(i + 1).padStart(2, '0')} ${fmtDur(c)}</span>`).join('')}${nCh > 24 ? `<span>+${nCh - 24}</span>` : ''}</div>` : ''}
+      ${busy || t.status === 'done' ? `<div class="dprog"><div class="prog"><i style="width:${(t.progress * 100).toFixed(1)}%"></i></div><div class="dpt">${t.progTxt || ''}</div></div>` : ''}
+      ${t.status === 'error' ? `<div class="derr">${esc(t.error)}</div>` : ''}
+      ${t.outputs.length ? `<div class="douts">${t.outputs.map((o, i) => `<span class="dout"><b>${esc(o.name.replace(/^.*_(Titre\d+(?:_Chap\d+)?)\.mp4$/, '$1'))}</b> · ${fmtSize(o.size)}<button class="ibtn" data-bin="${i}"${o.inBin ? ' disabled' : ''}>${ic(o.inBin ? 'check' : 'plus')}${o.inBin ? 'Dans la médiathèque' : 'Ajouter au montage'}</button><button class="ibtn" data-dl="${i}" title="Télécharger le MP4">${ic('install')}</button></span>`).join('')}</div>` : ''}
+    </div>
+    <div class="dact">${busy ? `<button class="btn" data-a="cancel">${ic('x')}Annuler</button>` : `<button class="btn" data-a="go"${DVD.engine === 'error' ? ' disabled' : ''}>${ic(t.status === 'done' || t.status === 'error' ? 'reset' : 'play')}${t.status === 'done' || t.status === 'error' ? 'Relancer' : 'Convertir'}</button>`}</div>`;
+  n.querySelector('input').onchange = e => { t.selected = e.target.checked; dvdRow(t); dvdDock(); };
+  const b = n.querySelector('[data-a]'); if (b) b.onclick = () => b.dataset.a === 'cancel' ? dvdCancel(t) : dvdConvert(t);
+  n.querySelectorAll('[data-dl]').forEach(x => x.onclick = () => { const o = t.outputs[+x.dataset.dl]; download(o.blob, o.name); });
+  n.querySelectorAll('[data-bin]').forEach(x => x.onclick = () => dvdToBin(t, t.outputs[+x.dataset.bin]));
+  updDvdBtn();
+}
+function dvdProg(t) { const n = t.node; if (!n || !n.isConnected) return; const b = n.querySelector('.dprog .prog i'), p = n.querySelector('.dpt'); if (!b) return dvdRow(t); b.style.width = (t.progress * 100).toFixed(1) + '%'; p.textContent = t.progTxt; }
+function dvdStats() { if (DVD.ui && DVD.titles.length) { const s = $('.dvdstats', DVD.ui.el); if (s) { const vis = dvdVisible(); s.children[1].firstChild.textContent = fmtDur(vis.reduce((a, t) => a + (t.duration || 0), 0)); } } }
+function dvdDock() {
+  const f = DVD.ui && $('#dvdfoot', DVD.ui.el); updDvdBtn(); if (!f) return;
+  if (!DVD.titles.length) { f.innerHTML = `<span style="margin-right:auto;color:var(--g500);font-size:12px">MP4 · H.264 + AAC</span><button class="btn" data-close>Fermer</button>`; return; }
+  const sel = dvdVisible().filter(t => t.selected), dur = sel.reduce((a, t) => a + (t.duration || 0), 0), active = DVD.titles.filter(t => t.status === 'queued' || t.status === 'running').length, p = DVDPRE[DVDSET.quality] || DVDPRE.balanced;
+  f.innerHTML = `<div style="margin-right:auto"><b style="color:#fff">${sel.length ? `${sel.length} titre${sel.length > 1 ? 's' : ''} · ${fmtDur(dur)}` : 'Aucun titre sélectionné'}</b><div style="font-size:12px;color:var(--g500)">${active ? `${active} en cours ou en attente — vous pouvez fermer cette fenêtre, la conversion continue` : `MP4 · H.264 + AAC · qualité ${p.n.toLowerCase()}${DVDSET.split ? ' · un fichier par chapitre' : ''}`}</div></div>
+    <button class="btn" data-close>Fermer</button><button class="btn pri" id="dvdgo"${!sel.length || DVD.engine === 'error' ? ' disabled' : ''}>${ic('play')}Convertir en MP4</button>`;
+  $('#dvdgo', f).onclick = () => {
+    const s = dvdVisible().filter(t => t.selected && !['queued', 'running'].includes(t.status)); if (!s.length) return;
+    const long = s.find(t => t.duration > 5400 && !(DVDSET.split && t.chapters.length > 1));
+    if (long) toast(`Le titre ${long.vts} dure ${fmtDur(long.duration)} : si la mémoire manque, relancez-le avec « Un fichier par chapitre ».`, '', 6000);
+    s.forEach(dvdConvert);
+  };
+}
+
+/* ==========================================================================
    Actions, clavier, glisser-déposer, séparateurs, installation, démarrage
    ========================================================================== */
 function doAct(a) {
   const [k, v] = a.split(/:(.*)/s);
-  if (!P && !['pane', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
+  if (!P && !['dvd', 'pane', 'install', 'guide', 'settings', 'hub', 'fullscreen', 'new', 'open'].includes(k)) return;
   switch (k) {
     case 'undo': return undo();
     case 'redo': return redo();
@@ -3763,6 +4125,7 @@ function doAct(a) {
     case 'hub': return window.open('https://mowiss.github.io/Momohub/', '_blank', 'noopener');
     case 'tool': return setTool(v);
     case 'pane': return togglePane(v);
+    case 'dvd': return openDvd();
     case 'tview': SET.tview = v; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
     case 'split': return doSplit(T);
     case 'del': return doDelete(false);
