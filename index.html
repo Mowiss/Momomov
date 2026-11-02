@@ -768,6 +768,9 @@ const IC = {
   diamond: '<path d="M12 3l8 9-8 9-8-9z"/>',
   flame: '<path d="M12 2.5c.5 3.5 5 6 5 11a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.6 1 2.6 2 3 .5-3-.5-5.5.5-9z"/>',
   boom: '<path d="M12 2l1.8 5.2L19 5l-2.2 5.2L22 12l-5.2 1.8L19 19l-5.2-2.2L12 22l-1.8-5.2L5 19l2.2-5.2L2 12l5.2-1.8L5 5l5.2 2.2z"/>',
+  join: '<path d="M4 7h6v10H4zM14 7h6v10h-6z"/><path d="M8 12h8"/><path d="m14 10 2 2-2 2M10 10l-2 2 2 2"/>',
+  gaps: '<rect x="2" y="8" width="6" height="8" rx="1"/><rect x="16" y="8" width="6" height="8" rx="1"/><path d="M15 12h-5m0 0 2-2m-2 2 2 2"/>',
+  selafter: '<path d="M6 3v18"/><rect x="9" y="7" width="12" height="10" rx="1.5" stroke-dasharray="3 2"/><path d="m14 10 2 2-2 2"/>',
   drop: '<path d="M12 2.7s6.5 7 6.5 11.8a6.5 6.5 0 0 1-13 0C5.5 9.7 12 2.7 12 2.7z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M5 19l1.4-1.4M17.6 6.4 19 5"/>',
   dark: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
@@ -2460,6 +2463,43 @@ function purgeMedia() {
   act(() => { P.media = P.media.filter(m => mediaUsed(m.id)); });
   toast(`${un.length} média${un.length > 1 ? 's' : ''} inutilisé${un.length > 1 ? 's' : ''} retiré${un.length > 1 ? 's' : ''}`, 'ok');
 }
+/* ---------- Recoller deux morceaux d'un même clip ---------- */
+function joinable(a, b) {
+  if (!a || !b || a === b || a.track !== b.track || a.type !== b.type || Math.abs(cEnd(a) - b.start) > EPS * 2) return false;
+  if (a.type === 'video' || a.type === 'audio') return a.mediaId === b.mediaId && a.speed === b.speed && Math.abs(a.in + a.dur * a.speed - b.in) < 1.5 / P.fps;
+  if (a.type === 'image') return a.mediaId === b.mediaId;
+  if (a.type === 'text') return a.txt.s === b.txt.s;
+  if (a.type === 'color') return a.color === b.color;
+  if (a.type === 'fx') return (a.efx || []).map(e => e.k).join() === (b.efx || []).map(e => e.k).join();
+  if (a.type === 'sub') return (a.text || '') === (b.text || '');
+  return false;
+}
+function joinPair(a, b) { a.dur = fsnap(cEnd(b) - a.start); a.trOut = b.trOut; a.afOut = b.afOut; P.clips.splice(P.clips.indexOf(b), 1); return a; }
+function doJoin() {
+  const sel = selClips().filter(c => !lockedClip(c)); let pairs = [];
+  if (sel.length >= 2) { const s = [...sel].sort((x, y) => x.start - y.start); for (const a of s) { const b = s.find(o => joinable(a, o)); if (b) pairs.push([a, b]); } }
+  if (!pairs.length) { // coupe sous la tête de lecture (sur les clips sélectionnés en priorité)
+    const near = c => Math.abs(cEnd(c) - T) < 1.5 / P.fps;
+    const base = (sel.length ? P.clips.filter(c => sel.some(s => s.track === c.track)) : P.clips).filter(c => !lockedClip(c));
+    for (const a of base) if (near(a)) { const b = P.clips.find(o => joinable(a, o)); if (b) pairs.push([a, b]); }
+  }
+  if (!pairs.length) { toast(sel.length >= 2 ? 'Ces clips ne se suivent pas ou ne viennent pas du même média : rien à recoller' : 'Placez la tête de lecture sur la coupe (ou sélectionnez les deux morceaux) pour les recoller'); return; }
+  act(() => { const keep = []; for (const [a, b] of pairs) if (P.clips.includes(a) && P.clips.includes(b)) { joinPair(a, b); keep.push(a.id); } SEL = new Set(keep); });
+  toast(pairs.length > 1 ? `${pairs.length} coupes recollées` : 'Morceaux recollés', 'ok');
+}
+/* ---------- Refermer les vides d'une piste ---------- */
+function closeGaps() {
+  const sel = selClips(); const trs = [...new Set(sel.map(c => c.track))].map(trackById).filter(t => t && !t.lock);
+  if (!trs.length) { toast('Sélectionnez un clip : les vides de sa piste seront refermés'); return; }
+  let n = 0;
+  act(() => { for (const tr of trs) { let t = 0; for (const c of P.clips.filter(c => c.track === tr.id).sort((a, b) => a.start - b.start)) { if (c.start > t + EPS) { c.start = fsnap(t); n++; } t = cEnd(c); } } });
+  toast(n ? `${n} vide${n > 1 ? 's' : ''} refermé${n > 1 ? 's' : ''}` : 'Aucun vide sur cette piste', n ? 'ok' : '');
+}
+function selectAfter() {
+  const list = P.clips.filter(c => c.start >= T - EPS && !lockedClip(c));
+  SEL = new Set(list.map(c => c.id)); refreshInsp(); TLdraw(); drawOverlay();
+  toast(list.length ? `${list.length} clip${list.length > 1 ? 's' : ''} sélectionné${list.length > 1 ? 's' : ''} : faites-les glisser ensemble` : 'Aucun clip après la tête de lecture');
+}
 
 /* ==========================================================================
    Sous-titres : piste ST, détection des phrases, découpe du texte,
@@ -3904,7 +3944,7 @@ function buildHeader() {
 const PAL = [
   ['outils', 'Outils', [['tool:sel', 'cursor', 'Sélection : déplacer et rogner les clips (V)', 'c-blue'], ['tool:blade', 'blade', 'Lame : cliquer sur un clip pour le couper (C)', 'c-red'], ['tool:title', 'text', 'Titre : cliquer dans l\'aperçu pour poser un titre (T)', 'c-amber']]],
   ['montage', 'Montage', [['split', 'split', 'Scinder à la tête de lecture (S)', 'c-red'], ['del', 'trash', 'Supprimer (Suppr)', 'c-red'], ['ripple', 'ripple', 'Supprimer et refermer le vide (Maj+Suppr)', 'c-orange'],
-    ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
+    ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky'], ['join', 'join', 'Recoller : réunir deux morceaux coupés (tête de lecture sur la coupe, ou les deux sélectionnés) (J)', 'c-green'], ['gaps', 'gaps', 'Refermer les vides de la piste du clip sélectionné', 'c-orange'], ['selafter', 'selafter', 'Sélectionner tout ce qui suit la tête de lecture', 'c-blue']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
   ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
   ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['addbg', 'image', 'Ajouter un fond : une image ou une vidéo placée sous le clip choisi (détouré automatiquement)', 'c-sky'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple'], ['fxquick:fire', 'flame', 'Feu : flammes sur le clip choisi (ou sur le point suivi)', 'c-orange'], ['fxquick:explo', 'boom', 'Explosion à la tête de lecture', 'c-red'], ['fxquick:magic', 'fx', 'Traînée magique (suit le point suivi)', 'c-purple']]],
@@ -5641,6 +5681,10 @@ const GUIDE = [
     <h3>Scinder</h3>
     <ul><li>${gk('split')} <b>Scinder</b> (<kbd>S</kbd>) coupe en deux le clip sélectionné à la tête de lecture. Sans sélection, tous les clips sous la tête sont coupés.</li>
     <li>${gk('blade')} <b>La lame</b> (<kbd>C</kbd>) coupe là où vous cliquez, comme des ciseaux. Revenez à la sélection avec <kbd>V</kbd>.</li></ul>
+    <h3>Recoller</h3>
+    <ul><li>${gk('join')} <b>Recoller</b> (<kbd>J</kbd>) : placez la tête de lecture sur la coupe (ou sélectionnez les deux morceaux) et les deux redeviennent un seul clip. Cela marche quand les morceaux se touchent et se suivent dans la vidéo d'origine.</li>
+    <li>Juste après une coupe, <kbd>Ctrl</kbd>+<kbd>Z</kbd> l'annule aussi.</li>
+    <li>${gk('gaps')} <b>Refermer les vides</b> rapproche tous les clips de la piste du clip sélectionné, sans trou. ${gk('selafter')} <b>Sélectionner tout ce qui suit</b> attrape tous les clips après la tête de lecture pour les décaler d'un coup.</li></ul>
     <h3>Supprimer</h3>
     <ul><li>${gk('trash')} <b>Supprimer</b> (<kbd>Suppr</kbd>) enlève le clip et laisse un trou.</li>
     <li>${gk('ripple')} <b>Supprimer et refermer</b> (<kbd>Maj</kbd>+<kbd>Suppr</kbd>) enlève le clip et fait glisser la suite de la piste pour boucher le trou. Idéal pour retirer une hésitation.</li></ul>
@@ -5825,6 +5869,7 @@ const GUIDE = [
       <tr><td><kbd>Origine</kbd> <kbd>Fin</kbd></td><td>Début / fin du montage</td></tr>
       <tr><td><kbd>V</kbd> <kbd>C</kbd></td><td>Outil Sélection / Lame</td></tr>
       <tr><td><kbd>S</kbd></td><td>Scinder à la tête de lecture</td></tr>
+      <tr><td><kbd>J</kbd></td><td>Recoller les deux morceaux de part et d'autre de la tête de lecture</td></tr>
       <tr><td><kbd>T</kbd></td><td>Outil Titre (cliquer ensuite dans l'aperçu)</td></tr>
       <tr><td><kbd>U</kbd></td><td>Outil Sous-titres</td></tr>
       <tr><td><kbd>K</kbd></td><td>Outil Suivi de point</td></tr>
@@ -6189,6 +6234,9 @@ function doAct(a) {
     case 'subclear': if (!subClips().length) return toast('Aucun sous-titre'); return confirmBox('Effacer tous les sous-titres du montage ?', () => act(() => { P.clips = P.clips.filter(c => c.type !== 'sub'); }), 'Effacer');
     case 'tview': SET.tview = ({ av: 'v', v: 'a', a: 'av' })[SET.tview || 'av']; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
     case 'split': return doSplit(T);
+    case 'join': return doJoin();
+    case 'gaps': return closeGaps();
+    case 'selafter': return selectAfter();
     case 'del': return doDelete(false);
     case 'ripple': return doDelete(true);
     case 'dup': return doDuplicate();
@@ -6305,6 +6353,7 @@ document.addEventListener('keydown', e => {
     case 'v': return setTool('sel');
     case 'c': case 'b': return setTool('blade');
     case 's': return doSplit(T);
+    case 'j': return doJoin();
     case 't': return setTool('title');
     case 'u': return setTool('sub');
     case 'k': return setTool('track');
