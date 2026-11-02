@@ -2294,6 +2294,7 @@ const mb = (actn, label, k = '', icn = '') => `<button data-act="${actn}"><span 
 
 function buildHeader() {
   $('#btn-undo').innerHTML = ic('undo'); $('#btn-redo').innerHTML = ic('redo');
+  $('#btn-redo').insertAdjacentHTML('afterend', `<button class="hbtn dvdb" id="btn-dvd" title="Atelier DVD : convertir un DVD (dossier VIDEO_TS) en MP4 et l'ajouter au montage" data-act="dvd">${dvdIcon()}<b>DVD</b></button>`);
   $('#btn-install').innerHTML = ic('install', '', ' style="stroke-width:2.2"') + '<span class="lbl">Installer l\'appli</span>';
   $('#hmain').innerHTML = `
     <button class="hbtn" title="Nouveau projet (Ctrl+N)" data-act="new">${ic('plus', '', ' style="stroke-width:2.6"')}<span class="lbl">Nouveau</span></button>
@@ -2327,7 +2328,6 @@ function buildHeader() {
         <hr>${mb('purge', 'Retirer les médias inutilisés', '', 'trash')}
       </div></div>`;
   $('#hright').innerHTML = `
-    <button class="hbtn dvdb" id="btn-dvd" title="Atelier DVD : convertir un DVD (dossier VIDEO_TS) en MP4 et l'ajouter au montage" data-act="dvd">${dvdIcon()}<b>DVD</b></button>
     <button class="hbtn ico" title="Plein écran (F11)" data-act="fullscreen">${ic('expand')}</button>
     <div class="dd"><button class="hbtn ico" data-menu="m-file" title="Fichier : ouvrir, enregistrer, enregistrer sous, backup auto">${ic('save')}</button>
       <div class="menu right hidden" id="m-file">
