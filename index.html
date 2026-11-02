@@ -254,8 +254,6 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .rp{display:none;flex:1 1 0;flex-direction:column;min-height:0;border-bottom:1px solid var(--g700)}
 .rp.open{display:flex}
 .rp:last-child{border-bottom:0}
-#toolp{flex:0 1 auto;max-height:55%}
-#transp,#insp{flex-grow:1.4}
 #top.rnone #rcol,#top.rnone #vs1{display:none}
 /* Catalogue des transitions */
 #trlist{padding:8px 8px 14px}
@@ -669,7 +667,7 @@ const SKEY = 'momomov.settings';
 const SET = Object.assign({
   splash: true, startDlg: false, backup: 5, magnet: true, thumbs: true, waves: true, safe: false, exportMute: false,
   tlH: 300, binW: 250, inspW: 290, loop: false, mvol: 1, imgDur: 5, titleDur: 4, follow: true,
-  palC: {}, isec: {}, panes: { tool: true, bin: true, trans: false, insp: true }, rpW: 300, trDur: 0.8, bladeAll: false, titleTpl: 'center'
+  palC: {}, isec: {}, panes: { tool: false, bin: true, trans: false, insp: false }, rpW: 300, trDur: 0.8, bladeAll: false, titleTpl: 'center'
 }, (() => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { return {}; } })());
 function saveSet() { try { localStorage.setItem(SKEY, JSON.stringify(SET)); } catch (e) { } }
 
@@ -2166,13 +2164,15 @@ function buildPanes() {
   applyPanes();
 }
 function applyPanes() {
+  const first = PANES.find(([q]) => SET.panes[q]); if (first) onlyPane(first[0]);
   let any = false;
   for (const [k, id] of PANES) { const on = !!SET.panes[k]; any = any || on; $('#' + id).classList.toggle('open', on); const t = $(`[data-tab="${k}"]`); if (t) t.classList.toggle('on', on); }
   $('#top').classList.toggle('rnone', !any);
   if (SET.panes.trans && !$('#trlist').childElementCount) renderTransPane();
 }
-function togglePane(k) { SET.panes[k] = !SET.panes[k]; saveSet(); applyPanes(); }
-function showPane(k) { if (!SET.panes[k]) { SET.panes[k] = true; saveSet(); applyPanes(); } }
+function onlyPane(k) { for (const [q] of PANES) SET.panes[q] = q === k; }
+function togglePane(k) { if (SET.panes[k]) SET.panes[k] = false; else onlyPane(k); saveSet(); applyPanes(); }
+function showPane(k) { if (!SET.panes[k] || PANES.some(([q]) => q !== k && SET.panes[q])) { onlyPane(k); saveSet(); applyPanes(); } }
 
 /* ---------- Catalogue des transitions ---------- */
 let DRAGTRANS = null, TRANIM = 0;
