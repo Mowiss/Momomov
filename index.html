@@ -426,6 +426,7 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .isub{font-size:10.5px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.07em;margin:10px 0 5px}
 .ihint{color:var(--g500);font-size:12px;text-align:center;padding:4px}
 .tkp{fill:none;stroke:#22d3ee;stroke-width:calc(2px / var(--vk,1));stroke-dasharray:4 4;opacity:.8;vector-effect:non-scaling-stroke}.tkc{fill:none;stroke:#22d3ee;stroke-width:2;vector-effect:non-scaling-stroke}
+.pxb{position:absolute;left:26px;top:5px;font:700 8.5px/1 system-ui;letter-spacing:.04em;padding:3px 5px;border-radius:4px;background:rgba(16,185,129,.85);color:#fff;pointer-events:auto}.pxb.on{background:rgba(245,158,11,.9)}.pxb i{font-style:normal}
 .kv{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px dashed var(--g700);font-size:12px}
 .kv span{color:var(--g400)}.kv b{color:#fff;font-weight:600}
 .tog{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:12px;color:var(--g300);cursor:pointer}
@@ -787,7 +788,7 @@ const SKEY = 'momomov.settings';
 const SET = Object.assign({
   splash: true, startDlg: false, backup: 5, magnet: true, thumbs: true, waves: true, safe: false, exportMute: false,
   tlH: 300, binW: 250, inspW: 290, loop: false, mvol: 1, imgDur: 5, titleDur: 4, follow: true,
-  palC: {}, isec: {}, panes: { tool: false, bin: true, fx: false, trans: false, insp: false }, rpW: 300, trDur: 0.8, bladeAll: false, titleTpl: 'center'
+  palC: {}, isec: {}, panes: { tool: false, bin: true, fx: false, trans: false, insp: false }, rpW: 300, proxy: 'auto', trDur: 0.8, bladeAll: false, titleTpl: 'center'
 }, (() => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { return {}; } })());
 function saveSet() { try { localStorage.setItem(SKEY, JSON.stringify(SET)); } catch (e) { } }
 
@@ -1113,8 +1114,10 @@ async function addMedia(blob, name, opts = {}) {
     return addMedia(cv.blob, cv.name, Object.assign({}, opts, { kind, converted: true }));
   }
   const id = opts.id || uid();
+  let disk = !!opts.onDisk || blob instanceof File;
+  if (!disk && blob.size > 2e6) { const b2 = await toDisk('m_' + id + '_' + (name || '').slice(-40), blob); if (b2 !== blob) { URL.revokeObjectURL(url); blob = b2; disk = true; return addMedia(blob, name, Object.assign({}, opts, { id, kind, onDisk: true })); } }
   const md = { id, name, kind, mime: blob.type || '', size: blob.size, dur: kind === 'image' ? 0 : meta.dur, w: meta.w || (kind === 'audio' ? 0 : 1280), h: meta.h || (kind === 'audio' ? 0 : 720), hasAudio: kind === 'image' ? false : (opts.hasAudio ?? true) };
-  M.set(id, { blob, url, img: meta.img || null, thumbs: [], peaks: null, pps: 50, ready: false });
+  M.set(id, { blob, url, disk, img: meta.img || null, thumbs: [], peaks: null, pps: 50, ready: false });
   if (!opts.noPush) P.media.push(md);
   analyzeMedia(id);
   return md;
@@ -1151,6 +1154,7 @@ async function runAnalyze() {
       if (md.kind !== 'image') await genPeaks(id, md);
     } catch (e) { }
     m.ready = true; renderBin(); TLdraw();
+    if (md.kind === 'video') pxCheck(id);
   }
   ANBUSY = false;
 }
@@ -1175,7 +1179,9 @@ async function genThumbs(id, md) {
   el.removeAttribute('src'); el.load();
 }
 async function genPeaks(id, md) {
-  const m = M.get(id); if (!m || m.blob.size > 450e6) return;
+  const m = M.get(id); if (!m) return;
+  try { const r = await peaksStream(id, md); if (r && r.none) { if (md.kind === 'video') md.hasAudio = false; return; } if (r) { m.peaks = r.pk; m.pps = r.pps; md.hasAudio = r.mx > 0.002; return; } } catch (e) { }
+  if (m.blob.size > 120e6) return;
   const ac = audio(); if (!ac) return;
   let buf;
   try { const ab = await m.blob.arrayBuffer(); buf = await new Promise((res, rej) => { const p = ac.decodeAudioData(ab, res, rej); if (p && p.then) p.then(res, rej); }); }
@@ -1200,14 +1206,14 @@ function thumbAt(m, t) {
 const PL = new Map();
 function player(c) {
   let p = PL.get(c.id);
-  if (p && p.mediaId === c.mediaId && p.kind === c.type) return p;
+  const m = M.get(c.mediaId); if (!m) return null; const u = mediaURL(m);
+  if (p && p.mediaId === c.mediaId && p.kind === c.type && p.u === u) return p;
   if (p) dropPlayer(c.id);
-  const m = M.get(c.mediaId); if (!m) return null;
   const el = document.createElement(c.type === 'audio' ? 'audio' : 'video');
-  el.preload = 'auto'; el.playsInline = true; el.src = m.url; el.crossOrigin = 'anonymous';
+  el.preload = 'auto'; el.playsInline = true; el.src = u; el.crossOrigin = 'anonymous';
   el.addEventListener('seeked', reqDraw); el.addEventListener('loadeddata', reqDraw);
   $('#pool').appendChild(el);
-  p = { el, mediaId: c.mediaId, kind: c.type, g: null, s: null };
+  p = { el, u, mediaId: c.mediaId, kind: c.type, g: null, s: null };
   if (audio()) { try { p.s = AC.createMediaElementSource(el); p.g = AC.createGain(); p.g.gain.value = 0; p.s.connect(p.g); p.g.connect(MASTER); } catch (e) { p.s = p.g = null; } }
   PL.set(c.id, p); return p;
 }
@@ -2145,6 +2151,7 @@ function delMedia(id) {
   const go = () => {
     act(() => { P.clips = P.clips.filter(c => c.mediaId !== id); P.media = P.media.filter(m => m.id !== id); });
     for (const [cid, p] of PL) if (p.mediaId === id) dropPlayer(cid);
+    mbForget(id);
     // le blob reste en mémoire tant que l'historique peut en avoir besoin
   };
   if (n) confirmBox(`« ${md.name} » est utilisé par ${n} clip${n > 1 ? 's' : ''}. Le retirer quand même ?`, go, 'Retirer'); else go();
@@ -2543,7 +2550,7 @@ async function trackFrom(c, u0, v0) {
   try {
     box.status('Lecture de la vidéo…', 2);
     const MB = await loadMB();
-    input = new MB.Input({ source: new MB.BlobSource(m.blob), formats: MB.ALL_FORMATS });
+    input = new MB.Input({ source: new MB.BlobSource(m.pfile || m.blob), formats: MB.ALL_FORMATS });
     const tk = await input.getPrimaryVideoTrack(); if (!tk || !(await tk.canDecode())) throw new Error('vidéo non décodable');
     const md = media(c.mediaId), ar = (md.w || 16) / (md.h || 9), SW = ar >= 1 ? 480 : Math.round(480 * ar), SH = ar >= 1 ? Math.round(480 / ar) : 480;
     const ts = []; for (let i = 0; i < N; i++) ts.push(Math.max(0, srcTime(c, t0 + i / P.fps)));
@@ -3387,7 +3394,7 @@ function renderBin() {
     const missing = !m;
     return `<div class="mcard${BINSEL === md.id ? ' sel' : ''}${m && !m.ready ? ' loading' : ''}" draggable="${!missing}" data-mid="${md.id}" title="${esc(md.name)}${md.w ? ` — ${md.w}×${md.h}` : ''}${md.dur ? ` — ${fmtDur(md.dur)}` : ''}">
       ${th}<span class="kind" style="background:${col}">${ic(icn)}</span>${mediaUsed(md.id) ? '<span class="used" title="Utilisé dans le montage"></span>' : ''}
-      ${md.dur ? `<span class="dur">${fmtDur(md.dur)}</span>` : ''}
+      ${md.dur ? `<span class="dur">${fmtDur(md.dur)}</span>` : ''}${m && m.purl ? '<span class="pxb" title="Aperçu allégé prêt : montage fluide, export en pleine qualité">ALLÉGÉ</span>' : m && m.pprog != null ? `<span class="pxb on" title="Fabrication de l'aperçu allégé">ALLÈGEMENT <i class="pxp">${Math.round(m.pprog * 100)} %</i></span>` : ''}
       <button class="add" data-add="${md.id}" title="Ajouter à la tête de lecture">${ic('plus')}</button>
       <div class="nm">${missing ? '<span style="color:#f87171">manquant · </span>' : ''}${esc(md.name)}</div></div>`;
   }).join('')}</div>`;
@@ -3795,20 +3802,19 @@ const EXTM = { 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.
 
 /* ---------- Format .mmv (archive : projet.json + médias) ---------- */
 async function buildMMV(onProg) {
-  if (!window.JSZip) throw new Error('Le module d\'archive n\'a pas pu être chargé (connexion internet nécessaire au premier lancement).');
-  const z = new JSZip(); const proj = JSON.parse(JSON.stringify(P));
+  const ent = [], proj = JSON.parse(JSON.stringify(P));
   for (const md of proj.media) {
     const m = M.get(md.id); if (!m) continue;
     const ext = (md.name.match(/\.[a-z0-9]{2,5}$/i) || [EXTM[(md.mime || '').split(';')[0]] || ''])[0];
-    md.file = 'media/' + md.id + ext; z.file(md.file, m.blob, { compression: 'STORE' });
+    md.file = 'media/' + md.id + ext; ent.push({ name: md.file, blob: m.blob, crc: m.crc, onCrc: c => { m.crc = c; } });
   }
-  z.file('projet.json', JSON.stringify({ app: 'MOMOmov', version: 1, saved: new Date().toISOString(), project: proj }));
+  ent.push({ name: 'projet.json', blob: new Blob([JSON.stringify({ app: 'MOMOmov', version: 1, saved: new Date().toISOString(), project: proj })]) });
   try {
     const c = document.createElement('canvas'); const k = 360 / Math.max(P.w, P.h); c.width = Math.round(P.w * k); c.height = Math.round(P.h * k);
     c.getContext('2d').drawImage(CV(), 0, 0, c.width, c.height);
-    z.file('apercu.jpg', await new Promise(r => c.toBlob(r, 'image/jpeg', .8)));
+    ent.push({ name: 'apercu.jpg', blob: await new Promise(r => c.toBlob(r, 'image/jpeg', .8)) });
   } catch (e) { }
-  return z.generateAsync({ type: 'blob', compression: 'STORE', mimeType: 'application/x-momomov' }, m => onProg && onProg(m.percent));
+  return zipBlob(ent, onProg, 'application/x-momomov');
 }
 async function saveProject(as = false) {
   if (!P) return;
@@ -3845,10 +3851,11 @@ function normalize(proj) {
   });
   return proj;
 }
-async function loadProject(proj, getBlob, label) {
+async function loadProject(proj, getBlob, label, onDisk) {
   if (PLAY.on) pause();
   dropAllPlayers();
   for (const m of M.values()) try { URL.revokeObjectURL(m.url); } catch (e) { }
+  for (const id of [...MBIN.keys()]) mbForget(id); pxCancelAll();
   M.clear(); THURL.clear(); ANQ.length = 0;
   P = normalize(proj); HIST.u = []; HIST.r = []; PEND = null; SEL.clear(); T = 0; BINSEL = null;
   refreshAll(); zoomFit();
@@ -3859,7 +3866,7 @@ async function loadProject(proj, getBlob, label) {
     let b = null; try { b = await getBlob(md); } catch (e) { }
     if (!b) { miss++; continue; }
     if (!b.type && md.mime) b = new Blob([b], { type: md.mime });
-    const r = await addMedia(b, md.name, { id: md.id, kind: md.kind, noPush: true, hasAudio: md.hasAudio });
+    const r = await addMedia(b, md.name, { id: md.id, kind: md.kind, noPush: true, hasAudio: md.hasAudio, onDisk: !!onDisk });
     if (!r) miss++;
   }
   bz.close();
@@ -3868,13 +3875,19 @@ async function loadProject(proj, getBlob, label) {
 }
 async function openProjectFile(f, handle) {
   if (DIRTY && P && P.clips.length && !await confirmP('Le montage en cours a des modifications non enregistrées. Ouvrir quand même ?', 'Ouvrir')) return;
-  if (!window.JSZip) { toast('Module d\'archive indisponible (connexion internet requise)', 'err'); return; }
   try {
-    const z = await JSZip.loadAsync(f);
-    const pj = z.file('projet.json'); if (!pj) throw new Error('fichier .mmv invalide');
-    const j = JSON.parse(await pj.async('string'));
+    let j, get;
+    try {
+      const ix = await unzipIndex(f), pj = ix.get('projet.json'); if (!pj) throw new Error('fichier .mmv invalide');
+      j = JSON.parse(await (await unzipEntry(f, pj)).text());
+      get = async md => { const e = md.file && ix.get(md.file); return e ? unzipEntry(f, e, md.mime || '') : null; };
+    } catch (e1) {
+      if (!window.JSZip) throw e1;
+      const z = await JSZip.loadAsync(f); const pj = z.file('projet.json'); if (!pj) throw new Error('fichier .mmv invalide');
+      j = JSON.parse(await pj.async('string')); get = async md => { const fz = md.file && z.file(md.file); return fz ? fz.async('blob') : null; };
+    }
     closeModals();
-    await loadProject(j.project, async md => { const fz = md.file && z.file(md.file); return fz ? fz.async('blob') : null; });
+    await loadProject(j.project, get);
     FILEH = handle || null; saveProject.named = true; setDirty(false);
     toast(`« ${P.name} » ouvert`, 'ok');
   } catch (e) { toast('Ouverture impossible : ' + e.message, 'err', 5000); }
@@ -3933,7 +3946,7 @@ async function restoreBackup() {
   const st = await lastBackup(); if (!st) { toast('Aucune sauvegarde auto disponible'); return; }
   if (DIRTY && P && P.clips.length && !await confirmP('Remplacer le montage en cours par la dernière sauvegarde auto ?', 'Restaurer')) return;
   closeModals();
-  await loadProject(JSON.parse(st.json), md => IDB.get('media', md.id), 'Restauration de la sauvegarde…');
+  await loadProject(JSON.parse(st.json), md => IDB.get('media', md.id), 'Restauration de la sauvegarde…', true);
   for (const md of P.media) BK.saved.add(md.id);
   FILEH = null; setDirty(false);
   toast('Sauvegarde du ' + new Date(st.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) + ' restaurée', 'ok');
@@ -3986,9 +3999,9 @@ async function startExport(o) {
     <div class="prog"><i id="exprog"></i></div><div style="display:flex;justify-content:space-between;margin-top:8px;font:12px ui-monospace,monospace;color:var(--g400)"><span id="extime">${tc(0)} / ${tc(b - a)}</span><span id="expct">0 %</span></div>
     <div style="margin-top:10px;font-size:12px;color:var(--g500)">${audioOnly ? 'Son seul' : `${w}×${h} · ${P.fps} i/s`} · ${esc(OF.n)}${nat ? '' : ' · étape 1/2 : enregistrement, puis conversion'}</div></div>
     <div class="mf"><button class="btn red" id="excancel">${ic('x')}Annuler</button></div>`, { lock: true });
-  T = a; await primeAt(a, 5000);
+  window.EXPRT = true; dropAllPlayers(); T = a; await primeAt(a, 5000);
   const finish = async () => {
-    if (!EXP) return; const E = EXP; EXP = null; PLAY.on = false; syncMedia(T); updTransport();
+    if (!EXP) return; const E = EXP; EXP = null; PLAY.on = false; window.EXPRT = false; dropAllPlayers(); syncMedia(T); updTransport();
     await new Promise(r => { rec.onstop = r; try { rec.stop(); } catch (e) { r(); } });
     try { MASTER.disconnect(ad); } catch (e) { } OUT.gain.value = 1;
     document.removeEventListener('visibilitychange', vis);
@@ -4241,13 +4254,16 @@ async function renderMix(a, b, sr = 48000) {
     const [s0, e0] = extRange(c);
     const st = Math.max(s0, a, c.start - c.in / c.speed), en = Math.min(e0, b);
     if (en - st <= 1e-3) continue;
-    let buf = bufs.get(c.mediaId);
-    if (buf === undefined) { try { buf = await oac.decodeAudioData(await m.blob.arrayBuffer()); } catch (e) { buf = null; } bufs.set(c.mediaId, buf); }
-    if (!buf) continue;
+    let off = c.in + (st - c.start) * c.speed; const when = st - a, dur = en - st;
+    let buf = null; try { buf = await decodeRange(c.mediaId, off, off + dur * c.speed); } catch (e) { buf = null; }
+    if (buf) off = 0;
+    else {
+      buf = bufs.get(c.mediaId);
+      if (buf === undefined) { buf = null; if (m.blob.size < 150e6) try { buf = await oac.decodeAudioData(await m.blob.arrayBuffer()); } catch (e) { buf = null; } bufs.set(c.mediaId, buf); }
+      if (!buf || off >= buf.duration) continue;
+    }
     const src = oac.createBufferSource(); src.buffer = buf; src.playbackRate.value = c.speed;
     const g = oac.createGain(); src.connect(g); g.connect(oac.destination);
-    const off = c.in + (st - c.start) * c.speed, when = st - a, dur = en - st;
-    if (off >= buf.duration) continue;
     const n = Math.max(2, Math.ceil(dur * 60)), curve = new Float32Array(n);
     for (let i = 0; i < n; i++) { const tt = st + dur * i / (n - 1); curve[i] = c.vol * fadeGain(c, tt) * xGain(c, tt); }
     g.gain.setValueAtTime(curve[0], when); g.gain.setValueCurveAtTime(curve, when, Math.max(.002, dur));
@@ -4292,11 +4308,11 @@ async function fastExport(o, OF) {
   const box = ffBox(`Export ${OF.n}`);
   const t0 = performance.now();
   try {
-    box.status('Mixage du son…', 2);
-    const mix = await renderMix(a, b, sr);
-    if (box.cancelled) return;
     /* son seul */
     if (OF.a) {
+      box.status('Mixage du son…', 2);
+      const mix = await renderMix(a, b, sr);
+      if (box.cancelled) return;
       let out = wavBlob(mix);
       if (OF.k !== 'wav') { box.t0 = performance.now(); out = await ffRun(out, 'wav', OF.ext, OF.args(Q), p => box.prog(p), (s, p) => box.status(s, p)); }
       box.close(); download(out, safeName(P.name) + '.' + OF.ext);
@@ -4315,9 +4331,13 @@ async function fastExport(o, OF) {
     box.status('Chargement de l\'encodeur…', 4);
     if (container === 'mp4' && !window.Mp4Muxer) await loadScript(MUXV.mp4);
     if (container === 'webm' && !window.WebMMuxer) await loadScript(MUXV.webm);
+    // le fichier se construit directement sur le disque du navigateur (pas en mémoire vive)
+    let ow = null, ofh = null;
+    if (await diskBase()) try { ofh = await DISK.dir.getFileHandle('export_' + Date.now() + '.' + container, { create: true }); ow = await ofh.createWritable(); } catch (e) { ow = null; }
+    box.ow = ow;
     const muxer = container === 'mp4'
-      ? new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: vk, width: w, height: h, frameRate: fps }, audio: ac ? { codec: acodec, numberOfChannels: 2, sampleRate: sr } : undefined, fastStart: 'in-memory', firstTimestampBehavior: 'offset' })
-      : new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: 'V_VP9', width: w, height: h, frameRate: fps }, audio: ac ? { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: sr } : undefined, firstTimestampBehavior: 'offset' });
+      ? new Mp4Muxer.Muxer({ target: ow ? new Mp4Muxer.FileSystemWritableFileStreamTarget(ow) : new Mp4Muxer.ArrayBufferTarget(), video: { codec: vk, width: w, height: h, frameRate: fps }, audio: ac ? { codec: acodec, numberOfChannels: 2, sampleRate: sr } : undefined, fastStart: ow ? false : 'in-memory', firstTimestampBehavior: 'offset' })
+      : new WebMMuxer.Muxer({ target: ow ? new WebMMuxer.FileSystemWritableFileStreamTarget(ow) : new WebMMuxer.ArrayBufferTarget(), video: { codec: 'V_VP9', width: w, height: h, frameRate: fps }, audio: ac ? { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: sr } : undefined, firstTimestampBehavior: 'offset' });
     let encErr = null;
     const venc = new VideoEncoder({ output: (ch, meta) => muxer.addVideoChunk(ch, meta), error: e => { encErr = e; } });
     venc.configure(vc.cfg);
@@ -4325,11 +4345,18 @@ async function fastExport(o, OF) {
     if (ac) {
       aenc = new AudioEncoder({ output: (ch, meta) => muxer.addAudioChunk(ch, meta), error: e => { encErr = e; } });
       aenc.configure(ac);
-      const CH = 4800, L0 = mix.getChannelData(0), L1 = mix.getChannelData(1);
-      for (let i = 0; i < mix.length; i += CH) {
-        const n = Math.min(CH, mix.length - i), d = new Float32Array(n * 2); d.set(L0.subarray(i, i + n), 0); d.set(L1.subarray(i, i + n), n);
-        const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i / sr * 1e6), data: d });
-        aenc.encode(ad); ad.close();
+      // son mixé par tranches de 20 s : la mémoire ne grossit pas avec la durée du film
+      const WIN = 20, CH = 4800; let pos = 0;
+      for (let s = a; s < b - 1e-6 && !box.cancelled; s += WIN) {
+        box.status(`Mixage du son… ${tc(s - a)} / ${tc(b - a)}`, 2 + 3 * (s - a) / (b - a));
+        const mix = await renderMix(s, Math.min(b, s + WIN), sr), L0 = mix.getChannelData(0), L1 = mix.getChannelData(1);
+        for (let i = 0; i < mix.length; i += CH) {
+          const n = Math.min(CH, mix.length - i), d = new Float32Array(n * 2); d.set(L0.subarray(i, i + n), 0); d.set(L1.subarray(i, i + n), n);
+          const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((pos + i) / sr * 1e6), data: d });
+          aenc.encode(ad); ad.close();
+        }
+        pos += mix.length;
+        while (aenc.encodeQueueSize > 20) await new Promise(r => setTimeout(r, 5));
       }
     }
     /* rendu image par image */
@@ -4353,11 +4380,14 @@ async function fastExport(o, OF) {
       if (now - last > 150) { last = now; const el = (now - box.t0) / 1000, sp = (i + 1) / fps / el; box.prog((i + 1) / N); box.status(`Rendu des images${vc.hw ? ' (accélération matérielle)' : ''} — ${sp >= 1 ? '×' + sp.toFixed(1) + ' plus vite que le temps réel' : Math.round((i + 1) / el) + ' images/s'}`); }
     }
     EXP = null; endDecoders(DEC);
-    if (box.cancelled) { try { venc.close(); aenc && aenc.close(); } catch (e) { } toast('Export annulé'); reqDraw(); return; }
+    if (box.cancelled) { try { venc.close(); aenc && aenc.close(); } catch (e) { } try { ow && await ow.abort(); } catch (e) { } toast('Export annulé'); reqDraw(); return; }
     box.status('Finalisation…', 99);
     await venc.flush(); if (aenc) await aenc.flush(); if (encErr) throw encErr;
     muxer.finalize(); venc.close(); if (aenc) aenc.close();
-    let out = new Blob([muxer.target.buffer], { type: container === 'mp4' ? 'video/mp4' : 'video/webm' });
+    const otype = container === 'mp4' ? 'video/mp4' : 'video/webm';
+    let out;
+    if (ow) { await ow.close(); box.ow = null; out = new Blob([await ofh.getFile()], { type: otype }); }
+    else out = new Blob([muxer.target.buffer], { type: otype });
     /* conversion éventuelle */
     const direct = (OF.k === 'mp4' && vk === 'avc' && acodec !== 'opus') || (OF.k === 'mp4h' && vk === 'hevc' && acodec !== 'opus') || OF.k === 'webm';
     if (!direct) {
@@ -4374,6 +4404,7 @@ async function fastExport(o, OF) {
     toast(`Export terminé en ${fmtDur((performance.now() - t0) / 1000)} : ${safeName(P.name)}.${OF.ext} (${(out.size / 1048576).toFixed(1)} Mo)`, 'ok', 6000);
   } catch (e) {
     EXP = null; endDecoders(box.dec); box.close(); reqDraw();
+    try { box.ow && await box.ow.abort(); } catch (x) { }
     if (box.cancelled) { toast('Export annulé'); return; }
     if (e && e.message === 'nocodec') return 'fallback';
     toast('Export accéléré impossible : ' + (e && e.message || e) + ' — passage à l\'export classique', 'err', 6000);
@@ -4394,6 +4425,245 @@ async function prepFrame(t, skip) {
   }
   if (need.length) await Promise.all(need);
   if (Math.round(t * P.fps) % 60 === 0) for (const [id] of PL) { const c = clipById(id); if (!c || cEnd(c) < t - 3 || c.start > t + 10) dropPlayer(id); }
+}
+
+/* ==========================================================================
+   Gestion de la mémoire
+   - les médias restent sur le disque (dossier privé du navigateur, OPFS)
+   - archive .mmv lue et écrite sans recopie en mémoire (ZIP « stocké », zip64)
+   - son décodé par morceaux (forme d'onde, mixage d'export)
+   - aperçus allégés (proxys) pour monter les vidéos lourdes, export en pleine qualité
+   ========================================================================== */
+const SESS = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const DISK = { base: undefined, dir: null, px: null };
+async function diskBase() {
+  if (DISK.base !== undefined) return DISK.base;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const base = await root.getDirectoryHandle('momomov', { create: true });
+    let held = null;
+    if (navigator.locks) { await new Promise(r => { navigator.locks.request('mmv-' + SESS, () => { r(); return new Promise(() => { }); }); }); held = new Set(((await navigator.locks.query()).held || []).map(l => l.name)); }
+    const old = []; for await (const [n, h] of base.entries()) if (h.kind === 'directory' && /^s[a-z0-9]+$/.test(n) && n !== SESS && held && !held.has('mmv-' + n)) old.push(n);
+    for (const n of old) try { await base.removeEntry(n, { recursive: true }); } catch (e) { }
+    DISK.dir = await base.getDirectoryHandle(SESS, { create: true });
+    DISK.px = await base.getDirectoryHandle('apercus', { create: true });
+    // aperçus allégés de plus de 45 jours : supprimés
+    try { const lim = Date.now() - 45 * 864e5, del = []; for await (const [n, h] of DISK.px.entries()) if (h.kind === 'file' && (await h.getFile()).lastModified < lim) del.push(n); for (const n of del) await DISK.px.removeEntry(n); } catch (e) { }
+    try { navigator.storage.persist && navigator.storage.persist(); } catch (e) { }
+    DISK.base = base;
+  } catch (e) { DISK.base = null; }
+  return DISK.base;
+}
+/* recopie un fichier sur le disque du navigateur : la mémoire vive est libérée */
+async function toDisk(name, blob) {
+  if (!(await diskBase())) return blob;
+  try {
+    const fh = await DISK.dir.getFileHandle(name.replace(/[^\w.-]+/g, '_'), { create: true });
+    const w = await fh.createWritable(); await w.write(blob); await w.close();
+    const f = await fh.getFile(); return blob.type ? new Blob([f], { type: blob.type }) : f;
+  } catch (e) { console.warn('OPFS', e); return blob; }
+}
+
+/* ---------- ZIP sans recopie (STORE + zip64) ---------- */
+const CRCT = (() => { const t = new Int32Array(256 * 4); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c; } for (let n = 0; n < 256; n++) { let c = t[n]; for (let k = 1; k < 4; k++) { c = t[c & 255] ^ (c >>> 8); t[k * 256 + n] = c; } } return t; })();
+async function crcBlob(b, onp) {
+  let c = -1; const rd = b.stream().getReader(); let done = 0;
+  for (; ;) {
+    const { value: v, done: d } = await rd.read(); if (d) break;
+    let i = 0; const n = v.length, n4 = n - (n & 3);
+    for (; i < n4; i += 4) { c ^= v[i] | v[i + 1] << 8 | v[i + 2] << 16 | v[i + 3] << 24; c = CRCT[768 + (c & 255)] ^ CRCT[512 + (c >>> 8 & 255)] ^ CRCT[256 + (c >>> 16 & 255)] ^ CRCT[c >>> 24]; }
+    for (; i < n; i++) c = CRCT[(c ^ v[i]) & 255] ^ (c >>> 8);
+    done += n; if (onp) onp(done);
+  }
+  return (c ^ -1) >>> 0;
+}
+async function zipBlob(entries, onProg, mime) {
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  const now = new Date(), dt = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)), dd = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate());
+  const tot = entries.reduce((s, e) => s + e.blob.size, 0) || 1; let doneB = 0;
+  for (const e of entries) {
+    const nm = enc.encode(e.name), sz = e.blob.size;
+    const crc = e.crc ?? await crcBlob(e.blob, d => onProg && onProg((doneB + d) / tot * 100));
+    doneB += sz; if (e.onCrc) e.onCrc(crc);
+    const big = sz >= 0xFFFFFFFF || off >= 0xFFFFFFFF;
+    const lx = big ? 20 : 0, lh = new DataView(new ArrayBuffer(30 + nm.length + lx));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, big ? 45 : 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dt, true); lh.setUint16(12, dd, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, big ? 0xFFFFFFFF : sz, true); lh.setUint32(22, big ? 0xFFFFFFFF : sz, true); lh.setUint16(26, nm.length, true); lh.setUint16(28, lx, true);
+    new Uint8Array(lh.buffer).set(nm, 30);
+    if (big) { lh.setUint16(30 + nm.length, 1, true); lh.setUint16(32 + nm.length, 16, true); lh.setBigUint64(34 + nm.length, BigInt(sz), true); lh.setBigUint64(42 + nm.length, BigInt(sz), true); }
+    cen.push({ nm, crc, sz, off, big }); parts.push(lh.buffer, e.blob); off += lh.byteLength + sz;
+  }
+  const cdo = off; let cds = 0;
+  for (const c of cen) {
+    const x = c.big ? 28 : 0, h = new DataView(new ArrayBuffer(46 + c.nm.length + x));
+    h.setUint32(0, 0x02014b50, true); h.setUint16(4, c.big ? 45 : 20, true); h.setUint16(6, c.big ? 45 : 20, true); h.setUint16(8, 0x0800, true); h.setUint16(10, 0, true);
+    h.setUint16(12, dt, true); h.setUint16(14, dd, true); h.setUint32(16, c.crc, true);
+    h.setUint32(20, c.big ? 0xFFFFFFFF : c.sz, true); h.setUint32(24, c.big ? 0xFFFFFFFF : c.sz, true); h.setUint16(28, c.nm.length, true); h.setUint16(30, x, true);
+    h.setUint32(42, c.big ? 0xFFFFFFFF : c.off, true); new Uint8Array(h.buffer).set(c.nm, 46);
+    if (c.big) { const p = 46 + c.nm.length; h.setUint16(p, 1, true); h.setUint16(p + 2, 24, true); h.setBigUint64(p + 4, BigInt(c.sz), true); h.setBigUint64(p + 12, BigInt(c.sz), true); h.setBigUint64(p + 20, BigInt(c.off), true); }
+    parts.push(h.buffer); cds += h.byteLength;
+  }
+  const z64 = cdo + cds >= 0xFFFFFFFF || cen.some(c => c.big);
+  if (z64) {
+    const r = new DataView(new ArrayBuffer(56 + 20));
+    r.setUint32(0, 0x06064b50, true); r.setBigUint64(4, 44n, true); r.setUint16(12, 45, true); r.setUint16(14, 45, true);
+    r.setBigUint64(24, BigInt(cen.length), true); r.setBigUint64(32, BigInt(cen.length), true); r.setBigUint64(40, BigInt(cds), true); r.setBigUint64(48, BigInt(cdo), true);
+    r.setUint32(56, 0x07064b50, true); r.setBigUint64(64, BigInt(cdo + cds), true); r.setUint32(72, 1, true);
+    parts.push(r.buffer);
+  }
+  const eo = new DataView(new ArrayBuffer(22));
+  eo.setUint32(0, 0x06054b50, true); eo.setUint16(8, Math.min(0xFFFF, cen.length), true); eo.setUint16(10, Math.min(0xFFFF, cen.length), true);
+  eo.setUint32(12, Math.min(0xFFFFFFFF, cds), true); eo.setUint32(16, z64 ? 0xFFFFFFFF : cdo, true);
+  parts.push(eo.buffer);
+  return new Blob(parts, { type: mime || 'application/zip' });
+}
+async function unzipIndex(f) {
+  const tn = Math.min(f.size, 65557), tail = new DataView(await f.slice(f.size - tn).arrayBuffer());
+  let e = -1; for (let i = tn - 22; i >= 0; i--) if (tail.getUint32(i, true) === 0x06054b50) { e = i; break; }
+  if (e < 0) throw new Error('archive illisible');
+  let n = tail.getUint16(e + 10, true), cds = tail.getUint32(e + 12, true), cdo = tail.getUint32(e + 16, true);
+  if (e >= 20 && tail.getUint32(e - 20, true) === 0x07064b50) {
+    const z = Number(tail.getBigUint64(e - 12, true)), r = new DataView(await f.slice(z, z + 56).arrayBuffer());
+    if (r.getUint32(0, true) === 0x06064b50) { n = Number(r.getBigUint64(32, true)); cds = Number(r.getBigUint64(40, true)); cdo = Number(r.getBigUint64(48, true)); }
+  }
+  const cd = new DataView(await f.slice(cdo, cdo + cds).arrayBuffer()), td = new TextDecoder(), out = new Map(); let p = 0;
+  for (let i = 0; i < n && p + 46 <= cd.byteLength; i++) {
+    if (cd.getUint32(p, true) !== 0x02014b50) break;
+    const meth = cd.getUint16(p + 10, true), nl = cd.getUint16(p + 28, true), xl = cd.getUint16(p + 30, true), cl = cd.getUint16(p + 32, true);
+    let cs = cd.getUint32(p + 20, true), us = cd.getUint32(p + 24, true), lho = cd.getUint32(p + 42, true);
+    const name = td.decode(new Uint8Array(cd.buffer, p + 46, nl));
+    let q = p + 46 + nl; const qe = q + xl;
+    while (q + 4 <= qe) { const id = cd.getUint16(q, true), sz = cd.getUint16(q + 2, true); if (id === 1) { let r = q + 4; if (us === 0xFFFFFFFF) { us = Number(cd.getBigUint64(r, true)); r += 8; } if (cs === 0xFFFFFFFF) { cs = Number(cd.getBigUint64(r, true)); r += 8; } if (lho === 0xFFFFFFFF) { lho = Number(cd.getBigUint64(r, true)); } } q += 4 + sz; }
+    out.set(name, { meth, cs, us, lho }); p = qe + cl;
+  }
+  return out;
+}
+async function unzipEntry(f, e, type) {
+  const h = new DataView(await f.slice(e.lho, e.lho + 30).arrayBuffer());
+  const ds = e.lho + 30 + h.getUint16(26, true) + h.getUint16(28, true), raw = f.slice(ds, ds + e.cs, type || '');
+  if (e.meth === 0) return raw;
+  if (e.meth === 8 && window.DecompressionStream) { const b = await new Response(raw.stream().pipeThrough(new DecompressionStream('deflate-raw'))).blob(); return type ? new Blob([b], { type }) : b; }
+  throw new Error('compression non prise en charge');
+}
+
+/* ---------- Son décodé par morceaux ---------- */
+const MBIN = new Map();
+async function mbAudio(id) {
+  let o = MBIN.get(id); if (o) return o;
+  const m = M.get(id); if (!m) return { ok: false };
+  o = (async () => {
+    try {
+      const MB = await loadMB(); const input = new MB.Input({ source: new MB.BlobSource(m.blob), formats: MB.ALL_FORMATS });
+      const at = await input.getPrimaryAudioTrack(); return { MB, input, at, ok: !!at && await at.canDecode(), none: !at };
+    } catch (e) { return { ok: false }; }
+  })();
+  MBIN.set(id, o); return o;
+}
+function mbForget(id) { const o = MBIN.get(id); MBIN.delete(id); if (o) o.then(x => { try { x.input && x.input.dispose && x.input.dispose(); } catch (e) { } }); }
+/* forme d'onde sans décoder tout le fichier d'un coup */
+async function peaksStream(id, md) {
+  const A = await mbAudio(id); if (A.none) return { none: true }; if (!A.ok) return null;
+  const pps = 60, n = Math.ceil((md.dur || 1) * pps) + 2, pk = new Float32Array(n); let mx = 0, k = 0;
+  for await (const w of new A.MB.AudioBufferSink(A.at).buffers()) {
+    const b = w.buffer, sr = b.sampleRate, chs = []; for (let c = 0; c < Math.min(2, b.numberOfChannels); c++) chs.push(b.getChannelData(c));
+    const t0 = w.timestamp, L = b.length;
+    for (let j = 0; j < L; j += 4) { const i = Math.floor((t0 + j / sr) * pps); if (i < 0 || i >= n) continue; let v = 0; for (const ch of chs) { const x = Math.abs(ch[j]); if (x > v) v = x; } if (v > pk[i]) { pk[i] = v; if (v > mx) mx = v; } }
+    if (++k % 200 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+  return { pk, pps, mx };
+}
+/* extrait audio [s, e] (secondes de la source) en AudioBuffer */
+async function decodeRange(id, s, e) {
+  const A = await mbAudio(id); if (!A.ok) return null;
+  s = Math.max(0, s); let out = null;
+  for await (const w of new A.MB.AudioBufferSink(A.at).buffers(s, e + .05)) {
+    const b = w.buffer;
+    if (!out) out = new AudioBuffer({ length: Math.max(1, Math.ceil((e - s) * b.sampleRate) + 1), numberOfChannels: 2, sampleRate: b.sampleRate });
+    const off = Math.round((w.timestamp - s) * out.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const src = b.getChannelData(Math.min(c, b.numberOfChannels - 1)); let a = 0, d = off; if (d < 0) { a = -d; d = 0; }
+      const len = Math.min(src.length - a, out.length - d); if (len > 0) out.getChannelData(c).set(src.subarray(a, a + len), d);
+    }
+  }
+  return out;
+}
+
+/* ---------- Aperçus allégés (proxys) ---------- */
+const PXQ = []; let PXBUSY = null;
+function pxWanted(md) {
+  if (!md || md.kind !== 'video' || SET.proxy === 'off') return false;
+  if (SET.proxy === 'on') return Math.max(md.w, md.h) > 960;
+  const br = md.dur ? md.size * 8 / md.dur : 0;
+  return md.w * md.h > 1920 * 1088 || br > 30e6;
+}
+const pxName = md => 'p_' + md.id + '_' + md.size + '.mp4';
+async function pxLookup(md) { // aperçu déjà fabriqué lors d'une séance précédente ?
+  if (!(await diskBase())) return false;
+  try { const fh = await DISK.px.getFileHandle(pxName(md)); const f = await fh.getFile(); if (f.size > 1000) { pxAttach(md.id, f); return true; } } catch (e) { }
+  return false;
+}
+function pxAttach(id, f) { const m = M.get(id); if (!m) return; m.pfile = f; if (m.purl) URL.revokeObjectURL(m.purl); m.purl = URL.createObjectURL(f); m.pprog = null; for (const c of P.clips) if (c.mediaId === id) dropPlayer(c.id); renderBin(); reqDraw(); }
+function pxDetach(id) { const m = M.get(id); if (!m || !m.purl) return; URL.revokeObjectURL(m.purl); m.purl = null; m.pfile = null; for (const c of P.clips) if (c.mediaId === id) dropPlayer(c.id); }
+async function pxCheck(id) {
+  const md = media(id); if (!pxWanted(md) || M.get(id).purl) return;
+  if (await pxLookup(md)) return;
+  if (!PXQ.includes(id)) PXQ.push(id); pxRun();
+}
+async function pxRun() {
+  if (PXBUSY || !PXQ.length) return;
+  const id = PXQ.shift(), md = P && media(id), m = M.get(id);
+  if (!md || !m || m.purl || !(await diskBase())) { pxRun(); return; }
+  PXBUSY = { id };
+  let w = null, fh = null;
+  try {
+    const MB = await loadMB();
+    const input = new MB.Input({ source: new MB.BlobSource(m.blob), formats: MB.ALL_FORMATS });
+    fh = await DISK.px.getFileHandle(pxName(md) + '.part', { create: true }); w = await fh.createWritable();
+    const output = new MB.Output({ format: new MB.Mp4OutputFormat({ fastStart: false }), target: new MB.StreamTarget(w) });
+    const k = Math.min(1, 960 / Math.max(md.w, md.h)), ev = x => Math.max(2, Math.round(x * k / 2) * 2);
+    const conv = await MB.Conversion.init({ input, output, video: { width: ev(md.w), height: ev(md.h), fit: 'fill', codec: 'avc', bitrate: 2.5e6, keyFrameInterval: 1, forceTranscode: true }, audio: { codec: 'aac', bitrate: 160000 } });
+    if (!conv.isValid) throw new Error('conversion impossible');
+    PXBUSY.conv = conv; m.pprog = 0; renderBin();
+    conv.onProgress = p => { m.pprog = p; const el = document.querySelector(`.mcard[data-mid="${id}"] .pxp`); if (el) el.textContent = Math.round(p * 100) + ' %'; };
+    await conv.execute(); w = null;
+    try { await input.dispose(); } catch (e) { }
+    await fh.move(pxName(md)); // renommer quand c'est fini
+    pxAttach(id, await fh.getFile());
+  } catch (e) {
+    console.warn('proxy', e); const mm = M.get(id); if (mm) mm.pprog = null;
+    try { if (w) await w.abort(); } catch (x) { } try { await DISK.px.removeEntry(pxName(md) + '.part'); } catch (x) { }
+    renderBin();
+  }
+  PXBUSY = null; pxRun();
+}
+function pxCancelAll() { PXQ.length = 0; if (PXBUSY && PXBUSY.conv) try { PXBUSY.conv.cancel(); } catch (e) { } }
+async function pxClearAll() {
+  pxCancelAll(); for (const id of M.keys()) pxDetach(id);
+  if (await diskBase()) { const del = []; for await (const [n] of DISK.px.entries()) del.push(n); for (const n of del) try { await DISK.px.removeEntry(n); } catch (e) { } }
+  renderBin(); toast('Aperçus allégés supprimés', 'ok');
+}
+function pxApplySetting() { if (!P) return; if (SET.proxy === 'off') { pxCancelAll(); for (const id of M.keys()) pxDetach(id); renderBin(); } else for (const md of P.media) pxCheck(md.id); }
+/* URL utilisée par les lecteurs de l'aperçu (original pendant un export en temps réel) */
+function mediaURL(m) { return m.purl && SET.proxy !== 'off' && !window.EXPRT ? m.purl : m.url; }
+
+/* ---------- Bilan mémoire (Paramètres) ---------- */
+async function memReport() {
+  let tot = 0, disk = 0, ram = 0, px = 0, pxs = 0;
+  for (const md of (P ? P.media : [])) { const m = M.get(md.id); if (!m) continue; tot += m.blob.size; if (m.blob instanceof File || m.disk) disk += m.blob.size; else ram += m.blob.size; if (m.pfile) { px++; pxs += m.pfile.size; } }
+  const Go = b => b >= 1e9 ? (b / 1e9).toFixed(2).replace('.', ',') + ' Go' : Math.round(b / 1e6) + ' Mo';
+  const r = [`<div class="kv"><span>Médias du projet</span><b>${P ? P.media.length : 0} · ${Go(tot)}</b></div>`,
+    `<div class="kv"><span>Gardés sur le disque</span><b>${Go(tot - ram)}</b></div>`,
+    `<div class="kv"><span>En mémoire vive</span><b>${Go(ram)}</b></div>`,
+    `<div class="kv"><span>Aperçus allégés prêts</span><b>${px}${px ? ' · ' + Go(pxs) : ''}${PXBUSY ? ' · 1 en cours' : ''}${PXQ.length ? ' · ' + PXQ.length + ' en attente' : ''}</b></div>`,
+    `<div class="kv"><span>Lecteurs vidéo ouverts</span><b>${PL.size}</b></div>`];
+  if (performance.memory) r.push(`<div class="kv"><span>Mémoire du logiciel</span><b>${Go(performance.memory.usedJSHeapSize)}</b></div>`);
+  try { const e = await navigator.storage.estimate(); r.push(`<div class="kv"><span>Espace disque du navigateur</span><b>${Go(e.usage || 0)} / ${Go(e.quota || 0)}</b></div>`); } catch (e) { }
+  return r.join('');
+}
+function freeMemory() {
+  dropAllPlayers(); if (typeof AIS !== 'undefined') AIS.cache.clear(); for (const id of [...MBIN.keys()]) mbForget(id);
+  reqDraw(); toast('Mémoire libérée : lecteurs fermés, caches vidés', 'ok');
 }
 
 /* ==========================================================================
@@ -4551,6 +4821,11 @@ function settingsDialog() {
         ${tog('fastExp', 'Export accéléré (carte graphique, plus rapide que le temps réel)', SET.fastExp !== false)}
         <div class="f2"><div class="f"><label>Durée d'une image (s)</label><input type="number" data-s="imgDur" min="0.2" step="0.5" value="${SET.imgDur}"></div>
         <div class="f"><label>Durée d'un titre (s)</label><input type="number" data-s="titleDur" min="0.5" step="0.5" value="${SET.titleDur}"></div></div></div></div>
+      <div class="isec"><div class="isec-h">${ic('bolt', '', ' style="color:#fcd34d"')}Mémoire et fluidité</div><div class="isec-b">
+        <div class="f"><label>Aperçus allégés (montage fluide des vidéos lourdes)</label><select id="spx">${[['auto', 'Automatique : vidéos 4K et très lourdes'], ['on', 'Toujours : toutes les vidéos au-delà de 960 px'], ['off', 'Jamais : toujours les originaux']].map(([v, n]) => `<option value="${v}"${(SET.proxy || 'auto') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+        <div class="ihint" style="text-align:left;padding:2px 2px 8px">L'aperçu utilise une copie légère ; l'export se fait toujours à partir des originaux, en pleine qualité.</div>
+        <div id="smem"><div class="ihint">Calcul…</div></div>
+        <div class="ibtns"><button class="ibtn" id="sfree">${ic('bolt')}Libérer la mémoire</button><button class="ibtn" id="spxc" style="color:#fca5a5">${ic('trash')}Effacer les aperçus allégés</button></div></div></div>
       <div class="isec"><div class="isec-h">${ic('save', '', ' style="color:#60a5fa"')}Sauvegarde</div><div class="isec-b">
         <div class="f"><label>Backup auto dans le navigateur</label><select data-s="backup">${[0, 1, 2, 5, 10, 15, 30].map(v => `<option value="${v}"${v === SET.backup ? ' selected' : ''}>${v ? 'Toutes les ' + v + ' min' : 'Désactivé'}</option>`).join('')}</select></div>
         <div class="ibtns"><button class="ibtn" id="sbk">${ic('save')}Sauvegarder maintenant</button><button class="ibtn" id="sclr" style="color:#fca5a5">${ic('trash')}Effacer les backups</button></div></div></div>
@@ -4565,6 +4840,10 @@ function settingsDialog() {
     if (el.dataset.s) { SET[el.dataset.s] = +el.value; if (el.dataset.s === 'backup') { armBackup(); const bi = $('#backup-int'); if (bi) bi.value = String(SET.backup); } }
     saveSet(); updTools(); TLdraw(); drawOverlay();
   });
+  const upm = async () => { const el = $('#smem', m.el); if (el && el.isConnected) { el.innerHTML = await memReport(); setTimeout(upm, 2000); } }; upm();
+  $('#spx', m.el).onchange = e => { e.stopPropagation(); SET.proxy = e.target.value; saveSet(); pxApplySetting(); };
+  $('#sfree', m.el).onclick = () => { freeMemory(); upm(); };
+  $('#spxc', m.el).onclick = () => confirmBox('Effacer tous les aperçus allégés ? Ils seront refabriqués si besoin.', async () => { await pxClearAll(); if (SET.proxy !== 'off') setTimeout(pxApplySetting, 300); }, 'Effacer');
   $('#sbk', m.el).onclick = () => backupNow(false);
   $('#sclr', m.el).onclick = () => confirmBox('Effacer toutes les sauvegardes auto de ce navigateur ?', clearBackups, 'Effacer');
 }
@@ -4762,6 +5041,14 @@ const GUIDE = [
     <li><b>Un fichier par chapitre</b> découpe chaque titre selon les chapitres du DVD.</li>
     <li>Quand un MP4 est prêt, deux boutons apparaissent sous le titre : <b>Télécharger</b> pour l'enregistrer sur votre ordinateur, et <b>Envoyer dans la médiathèque</b> pour l'utiliser dans le montage.</li></ul>
     <div class="tip"><b>Bon à savoir :</b> comptez de 0,5 à 2 fois la durée du film selon l'ordinateur et la qualité. Au-delà d'environ 1 h 30 par titre, la mémoire peut manquer : activez alors « Un fichier par chapitre ». Les DVD du commerce protégés contre la copie ne sont pas pris en charge.</div>`],
+  ['memoire', 'bolt', 'Mémoire et fluidité', `
+    <p class="lead">MOMOmov est conçu pour tenir des projets longs et des vidéos lourdes (4K de téléphone, par exemple) sans saturer l'ordinateur.</p>
+    <ul><li><b>Les vidéos restent sur le disque.</b> Les fichiers importés sont lus directement là où ils sont ; ceux que MOMOmov fabrique (conversions, voix off, DVD, projets ouverts) sont rangés dans un dossier privé du navigateur au lieu d'occuper la mémoire vive.</li>
+    <li><b>Aperçus allégés.</b> Pour une vidéo 4K ou très lourde, MOMOmov fabrique en arrière-plan une copie légère (960 px) : la lecture et le déplacement dans la timeline deviennent fluides. Le badge vert <b>ALLÉGÉ</b> apparaît sur la vignette dans la médiathèque. L'export, lui, utilise toujours les originaux en pleine qualité. Les aperçus sont gardés d'une séance à l'autre, puis effacés après 45 jours sans servir.</li>
+    <li><b>Le son est lu par morceaux</b> : forme d'onde et mixage d'export ne chargent jamais un film entier en mémoire.</li>
+    <li><b>L'export s'écrit sur le disque</b> au fur et à mesure, et l'enregistrement du projet (.mmv) assemble les fichiers sans les recopier en mémoire. Les projets de plus de 4 Go sont pris en charge.</li></ul>
+    <h3>Dans les Paramètres</h3>
+    <p>Le bloc <b>Mémoire et fluidité</b> règle les aperçus allégés (automatique, toujours, jamais), affiche ce qui est sur le disque ou en mémoire et propose <b>Libérer la mémoire</b> si l'ordinateur ralentit.</p>`],
   ['clavier', 'keyb', 'Raccourcis', `
     <p class="lead">Les raccourcis qui font gagner le plus de temps.</p>
     <table>
