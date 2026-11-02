@@ -2953,6 +2953,29 @@ EFC.push(
     f: (x, cv, o) => { snap(cv, o); const pp = aiPerson(ET, o); if (!pp) return; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.filter = `grayscale(${o.a}) contrast(${1 + o.a * .1})`; x.drawImage(ET, 0, 0); x.filter = 'none'; x.drawImage(pp, 0, 0); x.restore(); } }
 );
 for (const e of EFC) EFMAP[e.k] = e;
+/* ---------- Ajouter un fond sous le clip choisi ---------- */
+function addBackground() {
+  const c = selClips().find(isVisual) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => P.tracks.findIndex(k => k.id === a.track) - P.tracks.findIndex(k => k.id === b.track))[0];
+  if (!c) { toast('Sélectionnez la vidéo à laquelle ajouter un fond'); return; }
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*,video/*,' + [...EXTL.video, ...EXTL.image].map(e => '.' + e).join(',');
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    begin();
+    const md = await addMedia(f, f.name); if (!md || md.kind === 'audio') { commit(); if (md) toast('Choisissez une image ou une vidéo'); return; }
+    const s = c.start, e = cEnd(c), ti = P.tracks.findIndex(k => k.id === c.track);
+    let tr = P.tracks.slice(ti + 1).find(k => k.kind === 'v' && !k.lock && trackFree(k, s, e));
+    if (!tr) { tr = { id: 'v' + uid(), kind: 'v' }; P.tracks.splice(ti + 1, 0, tr); }
+    const type = md.kind === 'image' ? 'image' : 'video', dur = type === 'image' ? e - s : Math.min(e - s, Math.floor(md.dur * P.fps + 1e-6) / P.fps);
+    const b = mkClip(type, { mediaId: md.id, track: tr.id, start: s, dur, name: 'Fond · ' + md.name.replace(/\.[^.]+$/, '') });
+    if (type === 'video') b.vol = 0;
+    P.clips.push(b); const bs = baseSize(b); b.sc = Math.max(P.w / bs.w, P.h / bs.h);
+    let auto = false;
+    if (c.type === 'video' || c.type === 'image') { if (!(c.efx || []).some(x => ['aicut', 'keyg'].includes(x.k) && x.on !== false)) { addEffect(c, 'aicut'); auto = true; } }
+    SEL = new Set([c.id]); commit(); refreshAll();
+    toast(`Fond posé sous « ${c.name || 'le clip'} »` + (auto ? ' et Détourage IA ajouté' : '') + (type === 'video' && dur < e - s - .05 ? ' (la vidéo de fond est plus courte que le clip)' : ''), 'ok', 5000);
+  };
+  inp.click();
+}
 
 /* ==========================================================================
    Pyrotechnie : feu, fumée, explosion, braises, traînée magique.
@@ -3710,7 +3733,7 @@ const PAL = [
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
   ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
-  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple'], ['fxquick:fire', 'flame', 'Feu : flammes sur le clip choisi (ou sur le point suivi)', 'c-orange'], ['fxquick:explo', 'boom', 'Explosion à la tête de lecture', 'c-red'], ['fxquick:magic', 'fx', 'Traînée magique (suit le point suivi)', 'c-purple']]],
+  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['addbg', 'image', 'Ajouter un fond : une image ou une vidéo placée sous le clip choisi (détouré automatiquement)', 'c-sky'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple'], ['fxquick:fire', 'flame', 'Feu : flammes sur le clip choisi (ou sur le point suivi)', 'c-orange'], ['fxquick:explo', 'boom', 'Explosion à la tête de lecture', 'c-red'], ['fxquick:magic', 'fx', 'Traînée magique (suit le point suivi)', 'c-purple']]],
   ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function textEditor(c) {
@@ -5498,7 +5521,7 @@ const GUIDE = [
     <li>Sélectionnez la vidéo et cliquez sur ${gk('drop')} <b>Fond vert</b> : le fond devient transparent.</li>
     <li>Dans le bloc <b>Effets</b> des propriétés, la <b>pipette</b> permet de cliquer sur la couleur exacte du fond dans l'aperçu (vert, bleu ou autre). <b>Tolérance</b> élargit la plage de couleurs retirées, <b>Adoucissement des bords</b> lisse le détourage, <b>Anti-reflets de couleur</b> retire le reflet vert sur les cheveux et la peau.</li></ul>
     <h3>Détourage IA (sans fond vert)</h3>
-    <ul><li>Sélectionnez une vidéo où apparaît une personne et cliquez sur ${gk('person')} <b>Détourage IA</b> : une intelligence artificielle repère la personne image par image et retire tout le reste. Posez un décor sur la piste du dessous.</li>
+    <ul><li>Sélectionnez une vidéo où apparaît une personne et cliquez sur ${gk('person')} <b>Détourage IA</b> : une intelligence artificielle repère la personne image par image et retire tout le reste. Pour le décor, le bouton ${gk('image')} <b>Ajouter un fond</b> de la palette demande une image ou une vidéo et la place tout seul sous le clip, à la bonne durée et en plein écran (il ajoute aussi le Détourage IA si le clip n'a encore ni détourage ni fond vert).</li>
     <li>Dans le catalogue <b>Effets</b> (famille Incrustation), deux variantes : <b>Flou d'arrière-plan IA</b> (effet « mode portrait » d'un téléphone) et <b>Couleur sélective IA</b> (la personne en couleur, le décor en noir et blanc).</li>
     <li>Réglages : <b>Seuil</b> resserre ou élargit la silhouette, <b>Douceur de la limite</b> et <b>Flou du contour</b> adoucissent les bords. Pour le détourage, <b>Opacité du fond</b> laisse deviner le décor d'origine.</li>
     <li>Le modèle (environ 16 Mo) se télécharge à la première utilisation, puis reste en mémoire du navigateur. Tout est calculé sur votre ordinateur, gratuitement et sans limite : vos vidéos ne partent nulle part.</li></ul>
@@ -5968,6 +5991,7 @@ function doAct(a) {
     case 'denoise': return denoiseDialog();
     case 'trkgo': { const c = trkTarget(); if (!c) return; const q = trackPoint(c, T); const X = clipXform(c, T, trState(c, T)); if (q) { const uv = projToUV(X, q.x, q.y); trackFrom(c, uv.u, uv.v); } return; }
     case 'trktext': return attachText();
+    case 'addbg': return addBackground();
     case 'trkfx': return attachFx(v);
     case 'fxquick': { const c = selClips().find(x => isVisual(x)) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; if (!c) { toast('Sélectionnez un clip'); return; } act(() => { const e = addEffect(c, v); if (v === 'explo' && e) e.td = +Math.max(0, T - c.start).toFixed(1); }); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(v) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return; }
     case 'dvd': return openDvd();
