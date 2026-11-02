@@ -766,6 +766,8 @@ const IC = {
   zoomtr: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="m3 3 5 5M21 3l-5 5M3 21l5-5M21 21l-5-5"/>',
   wipe: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M11 4v16"/><path d="M3 4h8v16H3z" fill="currentColor" opacity=".35"/>',
   diamond: '<path d="M12 3l8 9-8 9-8-9z"/>',
+  flame: '<path d="M12 2.5c.5 3.5 5 6 5 11a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 1.6 1 2.6 2 3 .5-3-.5-5.5.5-9z"/>',
+  boom: '<path d="M12 2l1.8 5.2L19 5l-2.2 5.2L22 12l-5.2 1.8L19 19l-5.2-2.2L12 22l-1.8-5.2L5 19l2.2-5.2L2 12l5.2-1.8L5 5l5.2 2.2z"/>',
   drop: '<path d="M12 2.7s6.5 7 6.5 11.8a6.5 6.5 0 0 1-13 0C5.5 9.7 12 2.7 12 2.7z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M5 19l1.4-1.4M17.6 6.4 19 5"/>',
   dark: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
@@ -2873,7 +2875,8 @@ function trackPane() {
     (n ? sec('trkat', 'Accrocher au point', 'plus', '#fcd34d', `<div class="ibtns" style="margin-top:2px">
       <button class="ibtn" data-act="trktext">${ic('text')}Texte</button><button class="ibtn" data-act="trkfx:anonblur">${ic('eyeoff')}Flou</button>
       <button class="ibtn" data-act="trkfx:anonpix">${ic('frame')}Pixels</button><button class="ibtn" data-act="trkfx:halopt">${ic('sun')}Halo</button>
-      <button class="ibtn" data-act="trkfx:flare">${ic('fx')}Reflet</button><button class="ibtn" data-act="trkfx:bolt">${ic('bolt')}Éclair</button></div>`) : '');
+      <button class="ibtn" data-act="trkfx:flare">${ic('fx')}Reflet</button><button class="ibtn" data-act="trkfx:bolt">${ic('bolt')}Éclair</button>
+      <button class="ibtn" data-act="trkfx:fire">${ic('flame')}Feu</button><button class="ibtn" data-act="trkfx:magic">${ic('fx')}Magie</button></div>`) : '');
 }
 
 /* ==========================================================================
@@ -2950,6 +2953,114 @@ EFC.push(
     f: (x, cv, o) => { snap(cv, o); const pp = aiPerson(ET, o); if (!pp) return; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.filter = `grayscale(${o.a}) contrast(${1 + o.a * .1})`; x.drawImage(ET, 0, 0); x.filter = 'none'; x.drawImage(pp, 0, 0); x.restore(); } }
 );
 for (const e of EFC) EFMAP[e.k] = e;
+
+/* ==========================================================================
+   Pyrotechnie : feu, fumée, explosion, braises, traînée magique.
+   Particules « calculées » (pas simulées) : chaque image se recalcule à partir
+   du temps, donc l'aperçu, le retour en arrière et l'export donnent la même chose.
+   ========================================================================== */
+const hh = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
+const SPR = {}, FIREB = document.createElement('canvas');
+function sprite(col) { // tache lumineuse douce, mise en cache par couleur
+  if (SPR[col]) return SPR[col];
+  const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(.35, `rgba(${col},.55)`); g.addColorStop(1, `rgba(${col},0)`); x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+  return SPR[col] = c;
+}
+const FIRECOL = ['255,250,225', '255,214,110', '255,140,40', '230,70,20', '150,30,10'];
+const fireCol = a => FIRECOL[Math.min(4, Math.floor(a * 5))];
+const posAt = (o, dt) => fxPos(o.t === undefined ? o : Object.assign({}, o, { t: Math.max(o.c ? o.c.start : 0, o.t - dt) }));
+const blob = (x, col, X, Y, s, al) => { if (al <= .004 || s < .5) return; x.globalAlpha = Math.min(1, al); x.drawImage(sprite(col), X - s, Y - s, s * 2, s * 2); };
+function fxBox(x) { x.save(); x.setTransform(1, 0, 0, 1, 0, 0); }
+const PYPOS = [{ k: 'px', n: 'Position X (sans suivi)', min: 0, max: 100, def: 50 }, { k: 'py', n: 'Position Y (sans suivi)', min: 0, max: 100, def: 80 }];
+function drawSmoke(x, o, base, R, amount, n0, wind) {
+  const n = Math.round(n0 * amount); if (!n) return;
+  for (let i = 0; i < n; i++) {
+    const L = 2.2 + hh(i, 21) * 1.8, age = ((o.lt / L + hh(i, 22)) % 1 + 1) % 1, p = base(age * L);
+    const X = p.x + (hh(i, 23) - .5) * R * .5 + wind * age * R * 1.2 + Math.sin(age * 4 + i) * R * .12, Y = p.y - R * .5 - age * R * (1.6 + hh(i, 24));
+    const s = R * (.15 + age * .55) * (.7 + hh(i, 25) * .6), g = 70 + hh(i, 26) * 40 | 0;
+    blob(x, `${g},${g},${g}`, X, Y, s, amount * .22 * Math.sin(Math.PI * Math.min(1, age * 1.3)));
+  }
+}
+EFC.push(
+  { k: 'fire', cat: 'Feu et magie', n: 'Feu', aN: 'Intensité', a0: 80,
+    params: [{ k: 'r', n: 'Hauteur des flammes', min: 3, max: 100, def: 22 }, { k: 'w', n: 'Largeur du foyer', min: 1, max: 100, def: 8 }, { k: 'wd', n: 'Vent', min: -100, max: 100, def: 0 },
+      { k: 'fu', n: 'Fumée', min: 0, max: 100, def: 30 }, { k: 'au', n: 'Réagit au son', min: 0, max: 100, def: 0 }, ...PYPOS],
+    f: (x, cv, o) => {
+      const lv = fxLevel(o), a = Math.min(1, o.a * lv * 1.1), R = (o.e.r ?? 22) / 100 * o.H * (.6 + .4 * lv), Wd = (o.e.w ?? 8) / 100 * o.W, wind = (o.e.wd ?? 0) / 100;
+      const base = dt => posAt(o, dt), p0 = base(0), t = o.lt;
+      fxBox(x);
+      drawSmoke(x, o, base, R, (o.e.fu ?? 30) / 100, 40, wind);
+      // langues de flammes, dessinées sur un calque puis adoucies d'un seul flou
+      const m = clamp(Math.round(4 + Wd / (R * .22)), 4, 40), fb = efSize(FIREB, o.W, o.H); fb.globalCompositeOperation = 'lighter';
+      const layers = [[1, 1, ['255,60,10', '220,40,10', '120,20,5'], .55], [.78, .62, ['255,150,40', '255,90,20', '200,40,10'], .6], [.5, .32, ['255,250,220', '255,210,90', '255,140,40'], .75]];
+      for (const [hk, wk, cols, al] of layers) for (let j = 0; j < m; j++) {
+        const ox = m > 1 ? (j / (m - 1) - .5) * Wd * .9 + (hh(j, 81) - .5) * Wd / m : 0, edge = .5 + .5 * Math.sqrt(Math.max(0, 1 - Math.abs(ox) / (Wd * .5 + R * .15)));
+        const fl = .68 + .2 * Math.sin(t * (6 + 4 * hh(j, 82)) + j * 2.1) + .12 * Math.sin(t * (13 + 5 * hh(j, 83)) + j * 1.7);
+        const hgt = R * hk * (.4 + .75 * hh(j, 84)) * fl * edge, w = Math.max(R * .11, Wd / m * 1.35) * wk * (.7 + .6 * hh(j, 85));
+        const pb = m > 1 ? base(0) : p0, bx = pb.x + ox, by = pb.y;
+        const sw = Math.sin(t * (3.5 + hh(j, 86) * 2) + j * 1.3) * hgt * .12 + wind * hgt * .5, sw2 = Math.sin(t * 7 + j * 2.7) * hgt * .06 + wind * hgt * .2;
+        const g = fb.createLinearGradient(0, by, 0, by - hgt); g.addColorStop(0, `rgba(${cols[0]},${al})`); g.addColorStop(.45, `rgba(${cols[1]},${al * .8})`); g.addColorStop(.85, `rgba(${cols[2]},${al * .25})`); g.addColorStop(1, `rgba(${cols[2]},0)`);
+        fb.fillStyle = g; fb.beginPath(); fb.moveTo(bx - w / 2, by);
+        fb.bezierCurveTo(bx - w * .75 + sw2, by - hgt * .35, bx - w * .25 + sw, by - hgt * .7, bx + sw * 1.4, by - hgt);
+        fb.bezierCurveTo(bx + w * .25 + sw, by - hgt * .7, bx + w * .75 + sw2, by - hgt * .35, bx + w / 2, by);
+        fb.ellipse(bx, by, w / 2, w * .22, 0, 0, Math.PI); fb.fill();
+      }
+      x.globalCompositeOperation = 'lighter';
+      blob(x, '255,110,30', p0.x, p0.y - R * .25, Math.max(R * .8, Wd * .6), a * .22); // lueur du foyer
+      x.globalAlpha = a; x.filter = `blur(${Math.max(1, R * .035)}px)`; x.drawImage(FIREB, 0, 0); x.filter = 'none';
+      // étincelles qui s'échappent
+      const n = Math.round(8 + 25 * o.a * (1 + Wd / (R + 1)));
+      for (let i = 0; i < n; i++) {
+        const Lf = .8 + hh(i, 1) * 1.2, age = ((t / Lf + hh(i, 2)) % 1 + 1) % 1, p = base(age * Lf);
+        const X = p.x + (hh(i, 3) - .5) * Wd + Math.sin(age * 9 + i) * R * .12 + wind * age * R, Y = p.y - R * (.3 + age * 1.3 * (.6 + .6 * hh(i, 4))), s = Math.max(.8, R * .0035 * (1 - age) + o.k * 1.1);
+        x.globalAlpha = Math.max(0, a * (1 - age) * (.55 + .45 * Math.sin(t * 20 + i))); x.fillStyle = age < .4 ? '#fff1c0' : '#ffa040'; x.fillRect(X - s, Y - s, s * 2, s * 2);
+      }
+      x.restore(); } },
+  { k: 'smoke', cat: 'Feu et magie', n: 'Fumée', aN: 'Densité', a0: 60,
+    params: [{ k: 'r', n: 'Taille', min: 3, max: 100, def: 25 }, { k: 'wd', n: 'Vent', min: -100, max: 100, def: 15 }, ...PYPOS],
+    f: (x, cv, o) => { fxBox(x); drawSmoke(x, o, dt => posAt(o, dt), (o.e.r ?? 25) / 100 * o.H, o.a * 1.6, 60, (o.e.wd ?? 15) / 100); x.restore(); } },
+  { k: 'explo', cat: 'Feu et magie', n: 'Explosion', aN: 'Puissance', a0: 85,
+    params: [{ k: 'td', n: 'Moment (secondes après le début du clip)', min: 0, max: 30, def: 0.5, st: .1 }, { k: 'r', n: 'Taille', min: 5, max: 100, def: 20 }, { k: 'fl', n: 'Flash', min: 0, max: 100, def: 60 }, ...PYPOS],
+    f: (x, cv, o) => {
+      const e = o.prev ? (o.lt + 1.5) % 3 - .2 : o.lt - (o.e.td ?? .5); if (e < 0 || e > 4) return;
+      const p = posAt(o, 0), R = (o.e.r ?? 20) / 100 * Math.min(o.W, o.H) * (.6 + o.a * .6), a = Math.min(1, o.a * 1.2);
+      fxBox(x);
+      // fumée qui monte après le souffle
+      for (let i = 0; i < 26; i++) { const ang = hh(i, 31) * 6.283, d = R * (.3 + hh(i, 32) * .7) * (1 - Math.exp(-e * 2.5)), k = Math.min(1, e / 3.5);
+        blob(x, `${60 + hh(i, 33) * 30 | 0},${55 + hh(i, 33) * 25 | 0},${50 + hh(i, 33) * 25 | 0}`, p.x + Math.cos(ang) * d, p.y + Math.sin(ang) * d * .6 - e * R * .35, R * (.35 + e * .25), a * .5 * Math.min(1, e * 3) * (1 - k)); }
+      x.globalCompositeOperation = 'lighter';
+      if (e < .25) { x.globalAlpha = a * (o.e.fl ?? 60) / 100 * (1 - e / .25); x.fillStyle = '#fff4dc'; x.fillRect(0, 0, o.W, o.H); }
+      const ring = e / .45; if (ring < 1) { x.globalAlpha = a * .6 * (1 - ring); x.strokeStyle = '#ffd9a0'; x.lineWidth = R * .06 * (1 - ring) + 1; x.beginPath(); x.ellipse(p.x, p.y, R * 2.2 * ring, R * 1.5 * ring, 0, 0, 7); x.stroke(); }
+      for (let i = 0; i < 70; i++) { const ang = hh(i, 41) * 6.283, sp = .35 + hh(i, 42) * .75, d = R * sp * (1 - Math.exp(-e * 5)), life = .7 + hh(i, 43) * .9, k = e / life; if (k >= 1) continue;
+        blob(x, fireCol(Math.min(.99, .12 + k * .95)), p.x + Math.cos(ang) * d, p.y + Math.sin(ang) * d * .8 - e * e * R * .3, R * (.14 + .22 * hh(i, 44)) * (1 - k * .4), a * .4 * (1 - k)); }
+      x.lineCap = 'round';
+      for (let i = 0; i < 40; i++) { const ang = hh(i, 51) * 6.283, sp = R * (2 + hh(i, 52) * 3), life = .5 + hh(i, 53) * .8; if (e > life) continue;
+        const X = p.x + Math.cos(ang) * sp * e, Y = p.y + Math.sin(ang) * sp * e + 2.2 * R * e * e, vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp + 4.4 * R * e;
+        x.globalAlpha = a * (1 - e / life); x.strokeStyle = '#ffc070'; x.lineWidth = Math.max(1, 3 * o.k * 2); x.beginPath(); x.moveTo(X, Y); x.lineTo(X - vx * .03, Y - vy * .03); x.stroke(); }
+      x.restore(); } },
+  { k: 'embers', cat: 'Feu et magie', n: 'Braises', aN: 'Quantité', a0: 55,
+    f: (x, cv, o) => { fxBox(x); x.globalCompositeOperation = 'lighter'; const n = Math.round(20 + o.a * 130);
+      for (let i = 0; i < n; i++) { const L = 3 + hh(i, 61) * 4, age = ((o.lt / L + hh(i, 62)) % 1 + 1) % 1;
+        const X = hh(i, 63) * o.W + Math.sin(age * 9 + i) * o.W * .02, Y = o.H * (1.05 - age * 1.15), fl = .55 + .45 * Math.sin(o.lt * (6 + hh(i, 64) * 8) + i), s = (3 + hh(i, 65) * 6) * o.k * 2;
+        blob(x, hh(i, 66) < .5 ? '255,170,60' : '255,110,30', X, Y, s * 2.2, fl * Math.sin(Math.PI * age) * .9); blob(x, '255,240,200', X, Y, s * .6, fl * Math.sin(Math.PI * age)); }
+      x.restore(); } },
+  { k: 'magic', cat: 'Feu et magie', n: 'Traînée magique', aN: 'Quantité', a0: 70, col1: 'Couleur', c10: '#b48cff',
+    params: [{ k: 'r', n: 'Taille des étincelles', min: 2, max: 100, def: 25 }, { k: 'tl', n: 'Longueur de la traînée', min: 5, max: 100, def: 40 }, { k: 'au', n: 'Réagit au son', min: 0, max: 100, def: 0 }, { k: 'px', n: 'Position X (sans suivi)', min: 0, max: 100, def: 50 }, { k: 'py', n: 'Position Y (sans suivi)', min: 0, max: 100, def: 45 }],
+    f: (x, cv, o) => {
+      const [r, g, b] = hexRGB(o.e.c1 || '#b48cff').map(v => Math.round(v * 255)), col = `${r},${g},${b}`, life = .3 + (o.e.tl ?? 40) / 100 * 2, n = Math.round(30 + o.a * 150), S = (o.e.r ?? 25) / 100 * o.H * .06, a = o.a * fxLevel(o);
+      const moving = !!(o.c && o.c.trk);
+      fxBox(x); x.globalCompositeOperation = 'lighter';
+      const p0 = posAt(o, 0); blob(x, col, p0.x, p0.y, S * 5, a * .5); blob(x, '255,255,255', p0.x, p0.y, S * 1.6, a * .9);
+      for (let i = 0; i < n; i++) { const L = life * (.5 + hh(i, 71) * .5), age = ((o.lt / L + hh(i, 72)) % 1 + 1) % 1, p = posAt(o, age * L);
+        const ang = hh(i, 73) * 6.283, d = S * (moving ? 2 : 10) * age * (.3 + hh(i, 74));
+        const X = p.x + Math.cos(ang) * d, Y = p.y + Math.sin(ang) * d + age * age * S * 6, tw = .5 + .5 * Math.sin(o.lt * (10 + hh(i, 75) * 10) + i), s = S * (.4 + hh(i, 76)) * (1 - age * .6);
+        const c2 = hh(i, 77) < .3 ? '255,255,255' : col; blob(x, c2, X, Y, s * 2.5, a * (1 - age) * tw * .7);
+        if (tw > .8 && hh(i, 78) < .35) { x.globalAlpha = a * (1 - age); x.strokeStyle = '#fff'; x.lineWidth = Math.max(1, s * .2); x.beginPath(); x.moveTo(X - s * 1.8, Y); x.lineTo(X + s * 1.8, Y); x.moveTo(X, Y - s * 1.8); x.lineTo(X, Y + s * 1.8); x.stroke(); } }
+      x.restore(); } }
+);
+for (const e of EFC) EFMAP[e.k] = e;
+if (!EFCATS.includes('Feu et magie')) EFCATS.splice(EFCATS.indexOf('Lumières') + 1 || EFCATS.length, 0, 'Feu et magie');
 
 /* ==========================================================================
    Son : égaliseur, baisse automatique sous les voix, normalisation,
@@ -3599,7 +3710,7 @@ const PAL = [
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
   ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
-  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple']]],
+  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple'], ['fxquick:fire', 'flame', 'Feu : flammes sur le clip choisi (ou sur le point suivi)', 'c-orange'], ['fxquick:explo', 'boom', 'Explosion à la tête de lecture', 'c-red'], ['fxquick:magic', 'fx', 'Traînée magique (suit le point suivi)', 'c-purple']]],
   ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function textEditor(c) {
@@ -4032,7 +4143,7 @@ function refreshInsp() {
     h += sec('efx', `Effets${ef.length ? ' · ' + ef.length : ''}`, 'fx', '#a78bfa', ef.map((e, i) => { const d = EFMAP[e.k] || {}; return `<div class="efrow${e.on === false ? ' off' : ''}"><span class="efn">${esc(efName(e.k))}</span><button data-efon="${i}" title="${e.on === false ? 'Activer' : 'Désactiver'}">${ic(e.on === false ? 'eyeoff' : 'eye')}</button><button data-efdel="${i}" title="Retirer">${ic('x')}</button></div>
       ${d.col1 ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || d.c10}"><span style="flex:1;font-size:12px;color:var(--g400)">${d.col1}</span>${d.pick ? `<button class="ibtn" data-efpick="${i}" title="Cliquer ensuite sur la couleur dans l'aperçu">${ic('target')}Pipette</button>` : ''}</div>` : ''}
       ${d.sl === false ? '' : `<div class="f"><label>${d.aN || 'Intensité'}<b data-efv="${i}">${e.a} %</b></label><input type="range" data-efa="${i}" min="0" max="100" step="1" value="${e.a}"></div>`}
-      ${(d.params || []).filter(p => !(c.trk && (p.k === 'px' || p.k === 'py'))).map(p => `<div class="f"><label>${p.n}<b data-efpv="${i}:${p.k}">${e[p.k] ?? p.def}</b></label><input type="range" data-efp="${i}:${p.k}" min="${p.min}" max="${p.max}" step="1" value="${e[p.k] ?? p.def}"></div>`).join('')}
+      ${(d.params || []).filter(p => !(c.trk && (p.k === 'px' || p.k === 'py'))).map(p => `<div class="f"><label>${p.n}<b data-efpv="${i}:${p.k}">${e[p.k] ?? p.def}</b></label><input type="range" data-efp="${i}:${p.k}" min="${p.min}" max="${p.max}" step="${p.st || 1}" value="${e[p.k] ?? p.def}"></div>`).join('')}
       ${d.cols ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || '#1e1b4b'}" title="Couleur des ombres"><input type="color" data-efc="${i}:c2" value="${e.c2 || '#f472b6'}" title="Couleur des lumières"></div>` : ''}`; }).join('') +
       `<div class="ibtns"><button class="ibtn wide" data-act="pane:fx">${ic('fx')}Catalogue des effets</button></div>`);
   }
@@ -5375,13 +5486,13 @@ const GUIDE = [
     <li><b>Animation</b> : <b>Machine</b> fait apparaître les lettres une à une, <b>Défilement</b> fait monter le texte du bas vers le haut sur toute la durée du clip, comme un générique de fin.</li></ul>
     <div class="tip"><b>Astuce :</b> pour qu'un générique défile plus lentement, allongez simplement le clip.</div>`],
   ['effets', 'fx', 'Effets', `
-    <p class="lead">Le volet <b>Effets</b> rassemble une quarantaine d'effets à appliquer sur un clip : mouvement, couleur, flou et lumière, déformation, rétro, ambiance, fond vert, suivi et lumières dynamiques. Survolez une vignette pour la voir jouer.</p>
+    <p class="lead">Le volet <b>Effets</b> rassemble près de cinquante effets à appliquer sur un clip : mouvement, couleur, flou et lumière, déformation, rétro, ambiance, fond vert, suivi, lumières dynamiques, feu et magie. Survolez une vignette pour la voir jouer.</p>
     <ul><li><b>Glissez</b> une vignette sur un clip de la timeline (il s'entoure de violet), ou <b>cliquez</b> dessus pour l'ajouter aux clips sélectionnés.</li>
     <li>Les effets se <b>cumulent</b> : VHS + Neige, Néon + Pulsation… Un clip qui porte des effets affiche « fx » dans la timeline.</li>
     <li>Dans les propriétés du clip, le bloc <b>Effets</b> liste les effets posés : réglez leur intensité, masquez-les temporairement avec l'œil ou retirez-les avec la croix.</li></ul>
     <div class="tip"><b>Astuce :</b> les effets d'ambiance (neige, pluie, confettis, étincelles) se posent aussi sur un titre ou une couleur unie.</div>`],
   ['sfx', 'target', 'Effets spéciaux', `
-    <p class="lead">La famille <b>Effets spéciaux</b> de la palette regroupe le fond vert, le détourage IA, le suivi de point et les lumières dynamiques.</p>
+    <p class="lead">La famille <b>Effets spéciaux</b> de la palette regroupe le fond vert, le détourage IA, le suivi de point, le feu, les explosions et les lumières dynamiques.</p>
     <h3>Fond vert</h3>
     <ul><li>Mettez la vidéo tournée sur fond vert sur la piste <b>du dessus</b> (V2) et le nouveau décor sur la piste du dessous (V1).</li>
     <li>Sélectionnez la vidéo et cliquez sur ${gk('drop')} <b>Fond vert</b> : le fond devient transparent.</li>
@@ -5398,6 +5509,11 @@ const GUIDE = [
     <li>S'il décroche (détail caché, mouvement trop rapide), placez la tête de lecture à cet endroit et recliquez sur le détail : le suivi reprend à partir de là.</li>
     <li>Dans le volet <b>Outil en cours</b>, <b>accrochez au point</b> : un <b>texte</b> qui suit le détail, un <b>flou</b> ou des <b>pixels</b> pour anonymiser un visage ou une plaque, un <b>halo</b>, un <b>reflet</b> (lens flare) ou un <b>éclair</b>.</li>
     <li>Un texte accroché garde son décalage : déplacez-le dans l'aperçu pour le placer au-dessus du détail. « Détacher » dans ses propriétés le libère.</li></ul>
+    <h3>Feu et magie</h3>
+    <ul><li><b>Feu</b> : des flammes posées où vous voulez (réglage de position) ou sur un point suivi : une main en feu, une torche, un logo qui brûle. Hauteur des flammes, largeur du foyer (mettez-la au maximum et la position en bas pour un mur de feu), vent et fumée se règlent.</li>
+    <li><b>Explosion</b> : flash, boule de feu, onde de choc, éclats puis fumée. Le bouton de la palette la place à la tête de lecture ; le réglage <b>Moment</b> la décale ensuite.</li>
+    <li><b>Fumée</b>, <b>Braises</b> (escarbilles qui montent dans tout l'écran) et <b>Traînée magique</b> : des étincelles colorées qui suivent un point suivi en laissant un sillage, façon baguette magique.</li>
+    <li>Ils sont dans le catalogue <b>Effets</b> (famille « Feu et magie »), dans la palette (famille Effets spéciaux) et dans les accroches de l'outil Suivi.</li></ul>
     <h3>Lumières dynamiques</h3>
     <ul><li><b>Halo</b>, <b>Reflet</b> et <b>Éclair</b> (et aussi Flou et Pixels) se posent aussi sans suivi : réglez alors leur position dans le bloc <b>Effets</b> des propriétés.</li>
     <li><b>Pulsation</b> fait battre le halo ; <b>Réagit au son</b> fait vibrer la lumière au rythme du son du clip (une vidéo de concert, par exemple).</li></ul>
@@ -5853,7 +5969,7 @@ function doAct(a) {
     case 'trkgo': { const c = trkTarget(); if (!c) return; const q = trackPoint(c, T); const X = clipXform(c, T, trState(c, T)); if (q) { const uv = projToUV(X, q.x, q.y); trackFrom(c, uv.u, uv.v); } return; }
     case 'trktext': return attachText();
     case 'trkfx': return attachFx(v);
-    case 'fxquick': { const c = selClips().find(x => isVisual(x)) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; if (!c) { toast('Sélectionnez un clip'); return; } act(() => addEffect(c, v)); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(v) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return; }
+    case 'fxquick': { const c = selClips().find(x => isVisual(x)) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; if (!c) { toast('Sélectionnez un clip'); return; } act(() => { const e = addEffect(c, v); if (v === 'explo' && e) e.td = +Math.max(0, T - c.start).toFixed(1); }); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(v) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return; }
     case 'dvd': return openDvd();
     case 'subdetect': return subDetect();
     case 'subwhisper': return wDialog();
