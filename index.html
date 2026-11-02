@@ -278,6 +278,12 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .fp-row.on{background:color-mix(in srgb,var(--brand2) 45%,var(--g800))}
 .fp-h{font:10px system-ui;text-transform:uppercase;letter-spacing:.08em;color:var(--g500);padding:7px 12px 3px}
 .fp-foot{font-size:11px;color:var(--g500);padding:5px 12px;border-top:1px solid var(--g700)}
+/* Images clés */
+.f>label span{display:inline-flex;align-items:center;gap:5px}
+.kfb{width:17px;height:17px;padding:0;border:1px solid var(--g600);border-radius:4px;background:#111827;color:var(--g500);font-size:9px;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.kfb:hover{color:#fcd34d;border-color:#fcd34d}.kfb.has{color:#fcd34d88;border-color:#fcd34d66}.kfb.on{background:#fcd34d;border-color:#fcd34d;color:#111827}
+.kfnav{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--g400)}.kfnav span{flex:1;display:flex;align-items:center;gap:5px}.kfnav span svg{width:14px;height:14px;color:#fcd34d}
+.kfnav .ibtn{padding:4px 8px}
 /* Sous-titres */
 .ibtn.wbtn{background:linear-gradient(90deg,#4f57c9,#7c3aed);border-color:#9aa1ff;color:#fff;padding:8px}
 .thd.s .tn{background:#facc15}
@@ -419,6 +425,7 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .tchips{grid-template-columns:repeat(5,1fr)}
 .isub{font-size:10.5px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.07em;margin:10px 0 5px}
 .ihint{color:var(--g500);font-size:12px;text-align:center;padding:4px}
+.tkp{fill:none;stroke:#22d3ee;stroke-width:calc(2px / var(--vk,1));stroke-dasharray:4 4;opacity:.8;vector-effect:non-scaling-stroke}.tkc{fill:none;stroke:#22d3ee;stroke-width:2;vector-effect:non-scaling-stroke}
 .kv{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px dashed var(--g700);font-size:12px}
 .kv span{color:var(--g400)}.kv b{color:#fff;font-weight:600}
 .tog{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0;font-size:12px;color:var(--g300);cursor:pointer}
@@ -751,6 +758,8 @@ const IC = {
   alL: '<path d="M3 6h18M3 12h12M3 18h16"/>', alC: '<path d="M3 6h18M6 12h12M4 18h16"/>', alR: '<path d="M3 6h18M9 12h12M5 18h16"/>',
   zoomtr: '<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="m3 3 5 5M21 3l-5 5M3 21l5-5M21 21l-5-5"/>',
   wipe: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M11 4v16"/><path d="M3 4h8v16H3z" fill="currentColor" opacity=".35"/>',
+  diamond: '<path d="M12 3l8 9-8 9-8-9z"/>',
+  drop: '<path d="M12 2.7s6.5 7 6.5 11.8a6.5 6.5 0 0 1-13 0C5.5 9.7 12 2.7 12 2.7z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M5 19l1.4-1.4M17.6 6.4 19 5"/>',
   dark: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
   arrowL: '<path d="M19 12H5M11 6l-6 6 6 6"/>', arrowR: '<path d="M5 12h14M13 6l6 6-6 6"/>', arrowU: '<path d="M12 19V5M6 11l6-6 6 6"/>', arrowD: '<path d="M12 5v14M6 13l6 6 6-6"/>',
@@ -758,6 +767,8 @@ const IC = {
   type: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/><path d="M17 15h4" stroke-dasharray="1.5 1.5"/>',
   scroll: '<path d="M12 3v18M8 7l4-4 4 4"/><path d="M5 12h4M15 12h4M5 16h4M15 16h4"/>',
   disc: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/>',
+  target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
   cc: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 15h5M13 15h5M6 11.5h3M11 11.5h7"/>',
   wave: '<path d="M3 12h1M6.5 8v8M10 5v14M13.5 9v6M17 7v10M20.5 11v2"/>',
   hd: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9v6M6 12h4M10 9v6M14 9v6h2a3 3 0 0 0 0-6z"/>'
@@ -969,6 +980,69 @@ document.addEventListener('click', e => {
   if (k === 'txt') { const c = selClips().find(x => x.type === 'text'); if (!c) return; openFontPicker(b, c.txt.font, f => act(() => { for (const x of selClips()) if (x.txt) x.txt.font = f; })); }
   if (k === 'sub') openFontPicker(b, subStyle().font, f => act(() => { subStyle().font = f; }));
 });
+
+/* ==========================================================================
+   Images clés (position, échelle, rotation, opacité) + points de suivi
+   c.kf = { x:[{t,v}], … }  (t relatif au début du clip)
+   c.trk = { pts:[{t,u,v}] } (u,v : position normalisée dans l'image source)
+   c.follow = id du clip suivi (le clip se colle au point suivi, c.x / c.y = décalage)
+   ========================================================================== */
+const KFP = ['x', 'y', 'sc', 'rot', 'op'];
+const smooth = p => p * p * (3 - 2 * p);
+function kfList(c, k) { return c.kf && c.kf[k] && c.kf[k].length ? c.kf[k] : null; }
+function pv(c, k, t) {
+  const L = kfList(c, k); if (!L) return c[k];
+  const x = t - c.start, n = L.length;
+  if (x <= L[0].t) return L[0].v; if (x >= L[n - 1].t) return L[n - 1].v;
+  for (let i = 1; i < n; i++) if (x <= L[i].t) { const a = L[i - 1], b = L[i]; return a.v + (b.v - a.v) * smooth((x - a.t) / ((b.t - a.t) || 1)); }
+  return c[k];
+}
+const kfEq = (a, b) => Math.abs(a - b) < .5 / P.fps;
+function setPV(c, k, v, t) {
+  const L = kfList(c, k); if (!L) { c[k] = v; return; }
+  const x = fsnap(t - c.start), f = L.find(q => kfEq(q.t, x));
+  if (f) f.v = v; else { L.push({ t: x, v }); L.sort((a, b) => a.t - b.t); }
+}
+function hasKfAt(c, k, t) { const L = kfList(c, k); return !!(L && L.some(q => kfEq(q.t, t - c.start))); }
+function toggleKf(c, k, t = T) {
+  c.kf = c.kf || {}; const x = fsnap(t - c.start), L = c.kf[k];
+  if (!L || !L.length) { c.kf[k] = [{ t: x, v: pv(c, k, t) }]; return; }
+  const i = L.findIndex(q => kfEq(q.t, x));
+  if (i >= 0) { const v = L[i].v; L.splice(i, 1); if (!L.length) { delete c.kf[k]; c[k] = v; } }
+  else { L.push({ t: x, v: pv(c, k, t) }); L.sort((a, b) => a.t - b.t); }
+}
+function clearKf(c) { if (!c.kf) return; for (const k of KFP) if (c.kf[k]) c[k] = pv(c, k, T); c.kf = {}; }
+function shiftKf(c, d) { if (c.kf) for (const k in c.kf) for (const q of c.kf[k]) q.t += d; if (c.trk) for (const q of c.trk.pts) q.t += d; }
+function kfTimes(c) { const s = new Set(); if (c.kf) for (const k in c.kf) for (const q of c.kf[k]) s.add(Math.round(q.t * 1000) / 1000); return [...s].sort((a, b) => a - b); }
+function jumpKf(dir) {
+  const c = selClips()[0]; if (!c) return;
+  const ts = kfTimes(c).map(x => c.start + x), cur = T;
+  const x = dir > 0 ? ts.find(p => p > cur + 1e-4) : [...ts].reverse().find(p => p < cur - 1e-4);
+  if (x !== undefined) setTime(x, { follow: true }); else toast(dir > 0 ? 'Pas d\'image clé après' : 'Pas d\'image clé avant');
+}
+
+/* ---------- Points de suivi ---------- */
+function trackUV(c, t) {
+  const L = c.trk && c.trk.pts; if (!L || !L.length) return null;
+  const x = t - c.start, n = L.length;
+  if (x <= L[0].t) return L[0]; if (x >= L[n - 1].t) return L[n - 1];
+  let lo = 0, hi = n - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (L[m].t <= x) lo = m; else hi = m; }
+  const a = L[lo], b = L[hi], p = (x - a.t) / ((b.t - a.t) || 1);
+  return { u: a.u + (b.u - a.u) * p, v: a.v + (b.v - a.v) * p };
+}
+function uvToProj(X, u, v) {
+  const lx = (u - .5) * X.w * X.s * (X.fx || 1), ly = (v - .5) * X.h * X.s * (X.fy || 1), cs = Math.cos(X.r), sn = Math.sin(X.r);
+  return { x: X.cx + lx * cs - ly * sn, y: X.cy + lx * sn + ly * cs };
+}
+function projToUV(X, px, py) {
+  const dx = px - X.cx, dy = py - X.cy, cs = Math.cos(-X.r), sn = Math.sin(-X.r);
+  const lx = (dx * cs - dy * sn) / (X.s * (X.fx || 1)), ly = (dx * sn + dy * cs) / (X.s * (X.fy || 1));
+  return { u: lx / X.w + .5, v: ly / X.h + .5 };
+}
+function trackPoint(c, t, depth = 0) {
+  const uv = trackUV(c, t); if (!uv) return null;
+  return uvToProj(clipXform(c, t, trState(), depth), uv.u, uv.v);
+}
 
 /* ==========================================================================
    Moteur : médias, lecteurs, audio, composition, lecture
@@ -1247,10 +1321,12 @@ function textScrollY(c, t, bh) {
   const p = clamp((t - c.start) / c.dur, 0, 1);
   return (P.h / 2 + bh / 2) * (1 - 2 * p);
 }
-function clipXform(c, t, st) { // centre, rotation, échelle
-  const b = baseSize(c);
-  let y = c.y + st.dy; if (c.type === 'text') y += textScrollY(c, t, b.h * c.sc);
-  return { cx: P.w / 2 + c.x + st.dx, cy: P.h / 2 + y, r: c.rot * Math.PI / 180, s: c.sc * st.s, w: b.w, h: b.h, tb: b.tb };
+function clipXform(c, t, st, depth = 0) { // centre, rotation, échelle (images clés et suivi compris)
+  const b = baseSize(c), x = pv(c, 'x', t), sc = pv(c, 'sc', t), rot = pv(c, 'rot', t);
+  let y = pv(c, 'y', t) + st.dy; if (c.type === 'text') y += textScrollY(c, t, b.h * sc);
+  let cx = P.w / 2 + x + st.dx, cy = P.h / 2 + y;
+  if (c.follow && depth < 3) { const tg = clipById(c.follow); const p = tg && tg !== c ? trackPoint(tg, t, depth + 1) : null; if (p) { cx = p.x + x + st.dx; cy = p.y + y; } }
+  return { cx, cy, r: rot * Math.PI / 180, s: sc * st.s, w: b.w, h: b.h, tb: b.tb };
 }
 function activeVisuals(t) {
   const out = [], vt = P.tracks.filter(k => k.kind === 'v');
@@ -1263,7 +1339,7 @@ function activeVisuals(t) {
 function drawClip(ctx, c, t) {
   const X = clipXform(c, t, trState());
   const ef = activeFx(c); if (!ef.length) return paintClip(ctx, c, t, X);
-  const o = { W: P.w, H: P.h, k: P.w / 1920, lt: t - c.start, dur: c.dur, frame: Math.round(t * P.fps) };
+  const o = { W: P.w, H: P.h, k: P.w / 1920, lt: t - c.start, dur: c.dur, frame: Math.round(t * P.fps), c, t };
   for (const e of ef) if (EFMAP[e.k].xf) { o.a = e.a / 100; o.e = e; EFMAP[e.k].xf(X, o); }
   const post = ef.filter(e => EFMAP[e.k].f); if (!post.length) return paintClip(ctx, c, t, X);
   const x = efSize(EB, P.w, P.h); paintClip(x, c, t, X);
@@ -1276,7 +1352,7 @@ function paintClip(ctx, c, t, X) {
   else if (c.type === 'video') { const p = PL.get(c.id); if (p && p.el.readyState >= 2) src = p.el; else { const m = M.get(c.mediaId); src = m && thumbAt(m, srcTime(c, t)); } }
   else if (c.type === 'image') { const m = M.get(c.mediaId); src = m && m.img; }
   ctx.save();
-  ctx.globalAlpha = clamp(c.op, 0, 1);
+  ctx.globalAlpha = clamp(pv(c, 'op', t), 0, 1);
   const f = (c.type === 'video' || c.type === 'image') ? fxFilter(c.fx) : '';
   if (f) ctx.filter = f;
   ctx.translate(X.cx, X.cy); ctx.rotate(X.r); ctx.scale(X.s * (X.fx || 1), X.s * (X.fy || 1));
@@ -1578,6 +1654,11 @@ function sample(w, h, which) {
   const key = w + 'x' + h + which; if (SAMP[key]) return SAMP[key];
   const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
   const g = x.createLinearGradient(0, 0, 0, h);
+  if (which === 'G') {
+    x.fillStyle = '#00b140'; x.fillRect(0, 0, w, h);
+    x.fillStyle = '#f59e0b'; x.beginPath(); x.arc(w * .5, h * .38, h * .16, 0, 7); x.fill(); x.beginPath(); x.ellipse(w * .5, h * .95, h * .32, h * .38, 0, 0, 7); x.fill();
+    return SAMP[key] = c;
+  }
   if (which === 'A') {
     g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#60a5fa'); x.fillStyle = g; x.fillRect(0, 0, w, h);
     x.fillStyle = '#1e293b'; x.beginPath(); x.moveTo(0, h); x.lineTo(w * .25, h * .45); x.lineTo(w * .45, h * .7); x.lineTo(w * .68, h * .3); x.lineTo(w, h * .75); x.lineTo(w, h); x.fill();
@@ -1706,6 +1787,82 @@ const EFC = [
     for (let i = 0; i < n; i++) { const sp = .12 + r() * .18, xx = (r() + Math.sin(o.lt * 1.5 + i) * .015) * o.W, yy = ((r() + o.lt * sp) % 1) * o.H, s = (6 + r() * 8) * o.k * 2, rot = o.lt * (2 + r() * 5) + r() * 6;
       t.save(); t.translate(xx, yy); t.rotate(rot); t.scale(1, Math.abs(Math.cos(rot * 1.3)) + .15); t.fillStyle = cols[i % cols.length]; t.fillRect(-s / 2, -s / 4, s, s / 2); t.restore(); } }) }
 ];
+/* ---------- Fond vert (carte graphique, WebGL) ---------- */
+const GLK = { cv: null, gl: null, prog: null, tex: null, u: {} };
+function glKeyInit() {
+  if (GLK.gl !== null) return GLK.gl;
+  const cv = document.createElement('canvas'), gl = cv.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+  if (!gl) { GLK.gl = false; return false; }
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); return o; };
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, 'attribute vec2 a;varying vec2 v;void main(){v=vec2((a.x+1.)*.5,1.-(a.y+1.)*.5);gl_Position=vec4(a,0.,1.);}'));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `precision mediump float;varying vec2 v;uniform sampler2D t;uniform vec3 key;uniform float tol,soft,spill;
+    vec2 cc(vec3 c){return vec2(-.169*c.r-.331*c.g+.5*c.b,.5*c.r-.419*c.g-.081*c.b);}
+    void main(){vec4 c=texture2D(t,v);float d=distance(cc(c.rgb),cc(key));float a=smoothstep(tol,tol+soft,d);vec3 o=c.rgb;
+      if(key.g>=key.r&&key.g>=key.b){o.g=mix(o.g,min(o.g,max(o.r,o.b)),spill);}else if(key.b>=key.r){o.b=mix(o.b,min(o.b,max(o.r,o.g)),spill);}else{o.r=mix(o.r,min(o.r,max(o.g,o.b)),spill);}
+      gl_FragColor=vec4(o,c.a*a);}`));
+  gl.linkProgram(p); gl.useProgram(p);
+  const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  const al = gl.getAttribLocation(p, 'a'); gl.enableVertexAttribArray(al); gl.vertexAttribPointer(al, 2, gl.FLOAT, false, 0, 0);
+  GLK.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, GLK.tex);
+  for (const [k, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+  for (const n of ['key', 'tol', 'soft', 'spill']) GLK.u[n] = gl.getUniformLocation(p, n);
+  GLK.cv = cv; GLK.gl = gl; GLK.prog = p; return gl;
+}
+const hexRGB = h => { const n = parseInt(String(h || '#00ff00').slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+function glKey(src, W, H, key, tol, soft, spill) {
+  const gl = glKeyInit(); if (!gl) return null;
+  if (GLK.cv.width !== W || GLK.cv.height !== H) { GLK.cv.width = W; GLK.cv.height = H; }
+  gl.viewport(0, 0, W, H); gl.bindTexture(gl.TEXTURE_2D, GLK.tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.uniform3fv(GLK.u.key, key); gl.uniform1f(GLK.u.tol, tol); gl.uniform1f(GLK.u.soft, soft); gl.uniform1f(GLK.u.spill, spill);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  return GLK.cv;
+}
+/* position d'un effet : point suivi du clip, sinon position réglée */
+function fxPos(o) { if (o.c && o.c.trk && o.t !== undefined) { const p = trackPoint(o.c, o.t); if (p) return p; } return { x: (o.e.px ?? 50) / 100 * o.W, y: (o.e.py ?? 45) / 100 * o.H }; }
+function fxLevel(o) { // niveau sonore du clip (pour les lumières réactives)
+  if (!o.c || !o.c.mediaId || !(o.e.au > 0)) return 1;
+  const m = M.get(o.c.mediaId); if (!m || !m.peaks) return 1;
+  const st = srcTime(o.c, o.t); let v = 0; const i = Math.floor(st * m.pps); for (let j = i - 2; j <= i + 2; j++) v = Math.max(v, m.peaks[j] || 0);
+  return 1 - o.e.au / 100 + o.e.au / 100 * Math.min(1.6, v * 2.2);
+}
+const PPOS = [{ k: 'px', n: 'Position X (sans suivi)', min: 0, max: 100, def: 50 }, { k: 'py', n: 'Position Y (sans suivi)', min: 0, max: 100, def: 45 }];
+EFC.push(
+  { k: 'keyg', cat: 'Incrustation', n: 'Fond vert', aN: 'Tolérance', a0: 40, col1: 'Couleur à retirer', c10: '#00b140', pick: true,
+    params: [{ k: 's', n: 'Adoucissement des bords', min: 0, max: 100, def: 30 }, { k: 'sp', n: 'Anti-reflets de couleur', min: 0, max: 100, def: 60 }],
+    f: (x, cv, o) => { const g = glKey(cv, o.W, o.H, hexRGB(o.e.c1 || '#00b140'), .015 + o.a * .3, (o.e.s ?? 30) / 100 * .2 + .005, (o.e.sp ?? 60) / 100); if (!g) return; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.drawImage(g, 0, 0); x.restore(); } },
+  { k: 'anonblur', cat: 'Suivi', n: 'Flou suivi', aN: 'Force du flou', a0: 70, params: [{ k: 'r', n: 'Taille de la zone', min: 2, max: 60, def: 12 }, ...PPOS],
+    f: (x, cv, o) => { const p = fxPos(o), R = (o.e.r ?? 12) / 100 * o.H; snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.beginPath(); x.ellipse(p.x, p.y, R * .85, R, 0, 0, 7); x.clip(); x.filter = `blur(${2 + o.a * R * .35}px)`; x.drawImage(ET, 0, 0); x.restore(); } },
+  { k: 'anonpix', cat: 'Suivi', n: 'Pixels suivis', aN: 'Taille des pixels', a0: 60, params: [{ k: 'r', n: 'Taille de la zone', min: 2, max: 60, def: 12 }, ...PPOS],
+    f: (x, cv, o) => { const p = fxPos(o), R = (o.e.r ?? 12) / 100 * o.H, b = 4 + o.a * R * .25; snap(cv, o); const w = Math.max(1, Math.round(o.W / b)), h = Math.max(1, Math.round(o.H / b)); ES.width = w; ES.height = h; ES.getContext('2d').drawImage(ET, 0, 0, w, h); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.beginPath(); x.rect(p.x - R, p.y - R, R * 2, R * 2); x.clip(); x.imageSmoothingEnabled = false; x.drawImage(ES, 0, 0, o.W, o.H); x.restore(); } },
+  { k: 'halopt', cat: 'Lumières', n: 'Halo lumineux', aN: 'Intensité', a0: 80, col1: 'Couleur', c10: '#ffd27a',
+    params: [{ k: 'r', n: 'Taille', min: 2, max: 80, def: 18 }, { k: 'pu', n: 'Pulsation', min: 0, max: 100, def: 30 }, { k: 'au', n: 'Réagit au son', min: 0, max: 100, def: 0 }, ...PPOS],
+    f: (x, cv, o) => {
+      const p = fxPos(o), R = (o.e.r ?? 18) / 100 * o.H * (1 + (o.e.pu ?? 30) / 100 * .25 * Math.sin(o.lt * 5)), a = o.a * fxLevel(o), [r, g, b] = hexRGB(o.e.c1 || '#ffd27a').map(v => Math.round(v * 255));
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'screen';
+      const gr = x.createRadialGradient(p.x, p.y, 0, p.x, p.y, R); gr.addColorStop(0, `rgba(255,255,255,${Math.min(1, a)})`); gr.addColorStop(.15, `rgba(${r},${g},${b},${Math.min(1, a * .9)})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`);
+      x.fillStyle = gr; x.fillRect(p.x - R, p.y - R, R * 2, R * 2); x.restore(); } },
+  { k: 'flare', cat: 'Lumières', n: 'Reflet d\'objectif', aN: 'Intensité', a0: 75, col1: 'Couleur', c10: '#9fc8ff',
+    params: [{ k: 'r', n: 'Taille', min: 2, max: 60, def: 14 }, { k: 'au', n: 'Réagit au son', min: 0, max: 100, def: 0 }, ...PPOS],
+    f: (x, cv, o) => {
+      const p = fxPos(o), R = (o.e.r ?? 14) / 100 * o.H, a = Math.min(1.4, o.a * fxLevel(o)), [r, g, b] = hexRGB(o.e.c1 || '#9fc8ff').map(v => Math.round(v * 255)), cx = o.W / 2, cy = o.H / 2;
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'screen';
+      const glow = (X, Y, rad, col, al) => { const gr = x.createRadialGradient(X, Y, 0, X, Y, rad); gr.addColorStop(0, `rgba(${col},${al})`); gr.addColorStop(1, `rgba(${col},0)`); x.fillStyle = gr; x.fillRect(X - rad, Y - rad, rad * 2, rad * 2); };
+      glow(p.x, p.y, R, '255,255,255', Math.min(1, a)); glow(p.x, p.y, R * 2.4, `${r},${g},${b}`, a * .45);
+      const sg = x.createLinearGradient(p.x - o.W * .45, 0, p.x + o.W * .45, 0); sg.addColorStop(0, `rgba(${r},${g},${b},0)`); sg.addColorStop(.5, `rgba(255,255,255,${a * .55})`); sg.addColorStop(1, `rgba(${r},${g},${b},0)`); x.fillStyle = sg; x.fillRect(p.x - o.W * .45, p.y - R * .05, o.W * .9, R * .1);
+      [[.35, .25, '255,180,120'], [.6, .12, '140,255,180'], [1.15, .4, `${r},${g},${b}`], [1.4, .18, '255,120,220'], [1.75, .3, '160,190,255']].forEach(([k, s, col]) => glow(p.x + (cx - p.x) * k * 2, p.y + (cy - p.y) * k * 2, R * s * 1.6, col, a * .28));
+      x.restore(); } },
+  { k: 'bolt', cat: 'Lumières', n: 'Éclair', aN: 'Intensité', a0: 85, col1: 'Couleur', c10: '#9fd3ff',
+    params: [{ k: 'r', n: 'Longueur', min: 5, max: 100, def: 35 }, { k: 'an', n: 'Direction', min: -180, max: 180, def: -90 }, { k: 'au', n: 'Réagit au son', min: 0, max: 100, def: 0 }, ...PPOS],
+    f: (x, cv, o) => {
+      const p = fxPos(o), L = (o.e.r ?? 35) / 100 * o.H, an = (o.e.an ?? -90) * Math.PI / 180, a = Math.min(1, o.a * fxLevel(o)), r = rng(Math.floor(o.frame / 2) + 7), col = o.e.c1 || '#9fd3ff';
+      const path = (x0, y0, ang, len, depth) => { const pts = [[x0, y0]]; const n = 9; let X = x0, Y = y0; for (let i = 1; i <= n; i++) { const d = len / n, j = (r() - .5) * len * .25; X += Math.cos(ang) * d - Math.sin(ang) * j * .4; Y += Math.sin(ang) * d + Math.cos(ang) * j * .4; pts.push([X, Y]); if (depth < 2 && r() < .25) path(X, Y, ang + (r() - .5) * 1.4, len * .4, depth + 1); } segs.push([pts, depth]); };
+      const segs = []; path(p.x, p.y, an, L, 0);
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'lighter'; x.lineJoin = 'round'; x.lineCap = 'round';
+      for (const [w, al, c] of [[14, .18, col], [6, .45, col], [2, .95, '#ffffff']]) for (const [pts, dp] of segs) { x.globalAlpha = a * al / (dp + 1); x.strokeStyle = c; x.lineWidth = w * o.k * 2 / (dp + 1); x.beginPath(); pts.forEach(([X, Y], i) => i ? x.lineTo(X, Y) : x.moveTo(X, Y)); x.stroke(); }
+      x.restore(); } }
+);
 const EFCATS = [...new Set(EFC.map(e => e.cat))];
 const EFMAP = Object.fromEntries(EFC.map(e => [e.k, e]));
 const efName = k => (EFMAP[k] || { n: '?' }).n;
@@ -1714,15 +1871,17 @@ function activeFx(c) { return (c.efx || []).filter(e => e.on !== false && EFMAP[
 /* aperçu d'un effet sur l'image d'exemple */
 function fxPreview(cv, k, lt) {
   const W = cv.width, H = cv.height, d = EFMAP[k]; if (!d) return;
-  const e = { k, a: 75, c1: '#1e1b4b', c2: '#f472b6' };
-  const o = { W, H, k: W / 1920, lt, dur: 3, frame: Math.round(lt * 30), a: .75, e };
+  const def = EFMAP[k] || {}; const e = { k, a: def.a0 ?? 75, c1: def.c10 || '#1e1b4b', c2: '#f472b6' }; for (const p of def.params || []) e[p.k] = p.def;
+  const o = { W, H, k: W / 1920, lt, dur: 3, frame: Math.round(lt * 30), a: e.a / 100, e };
   const X = { cx: W / 2, cy: H / 2, s: 1, r: 0, fx: 1, fy: 1 };
   if (d.xf) d.xf(X, o);
-  const x = efSize(EB, W, H); x.save(); x.translate(X.cx, X.cy); x.rotate(X.r); x.scale(X.s * X.fx, X.s * X.fy); x.drawImage(sample(W, H, 'A'), -W / 2, -H / 2, W, H); x.restore();
+  const x = efSize(EB, W, H); x.save(); x.translate(X.cx, X.cy); x.rotate(X.r); x.scale(X.s * X.fx, X.s * X.fy); x.drawImage(sample(W, H, d.k === 'keyg' ? 'G' : 'A'), -W / 2, -H / 2, W, H); x.restore();
   if (d.f) d.f(x, EB, o);
   const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.filter = 'none'; c.globalCompositeOperation = 'source-over';
   c.fillStyle = '#0b0f17'; c.fillRect(0, 0, W, H); c.drawImage(EB, 0, 0);
 }
+/* position réglable quand aucun point n'est suivi */
+for (const k of ['anonblur', 'anonpix', 'halopt', 'flare', 'bolt']) { const d = EFC.find(e => e.k === k); if (d) d.params = [...(d.params || []), { k: 'px', n: 'Position horizontale (sans suivi)', min: 0, max: 100, def: 50 }, { k: 'py', n: 'Position verticale (sans suivi)', min: 0, max: 100, def: 45 }]; }
 
 /* ==========================================================================
    Édition : insertion, écrasement, découpe, pistes, marqueurs, looks, titres
@@ -1758,7 +1917,7 @@ function insertMedia(md, t, trackId) {
   return c;
 }
 /* Écrasement : le(s) clip(s) gagnant(s) recouvrent ce qui est dessous sur leur piste */
-function cutHead(c, d) { c.start += d; if (isAV(c)) c.in += d * c.speed; c.dur -= d; }
+function cutHead(c, d) { c.start += d; if (isAV(c)) c.in += d * c.speed; c.dur -= d; shiftKf(c, -d); }
 function resolve(winners) {
   for (const w of winners) {
     const ws = w.start, we = cEnd(w);
@@ -1939,7 +2098,7 @@ function transToSel(k, side) {
 }
 
 /* ---------- Effets ---------- */
-function addEffect(c, k) { if (!isVisual(c) || !EFMAP[k]) return; c.efx = c.efx || []; c.efx.push({ id: uid(), k, a: 70, on: true, c1: '#1e1b4b', c2: '#f472b6' }); }
+function addEffect(c, k) { if (!isVisual(c) || !EFMAP[k]) return; const d = EFMAP[k], e = { id: uid(), k, a: d.a0 ?? 70, on: true, c1: d.c10 || '#1e1b4b', c2: '#f472b6' }; for (const p of d.params || []) e[p.k] = p.def; c.efx = c.efx || []; c.efx.push(e); return e; }
 function fxToSel(k) {
   const list = selClips().filter(isVisual);
   if (!list.length) { toast('Glissez l\'effet sur un clip de la timeline, ou sélectionnez un clip'); return; }
@@ -2363,6 +2522,92 @@ async function wTranscribe(a, b) {
 }
 
 /* ==========================================================================
+   Suivi de mouvement (tracking) : on clique sur un détail de la vidéo,
+   il est suivi image par image (corrélation de motif sur image réduite).
+   ========================================================================== */
+const TRK = { busy: false };
+const trackIdx = c => P.tracks.findIndex(k => k.id === c.track);
+function grayOf(cv, w, h) {
+  const x = cv.getContext('2d', { willReadFrequently: true }), d = x.getImageData(0, 0, w, h).data, g = new Float32Array(w * h);
+  for (let i = 0, j = 0; j < g.length; i += 4, j++) g[j] = d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114;
+  return g;
+}
+async function trackFrom(c, u0, v0) {
+  if (TRK.busy) return; if (c.type !== 'video') { toast('Le suivi fonctionne sur une vidéo'); return; }
+  const m = M.get(c.mediaId); if (!m) return;
+  const t0 = Math.max(c.start, fsnap(T)), t1 = cEnd(c), N = Math.max(1, Math.round((t1 - t0) * P.fps));
+  if (N < 2) { toast('Placez la tête de lecture avant la fin du clip'); return; }
+  TRK.busy = true; pause();
+  const box = ffBox('Suivi du point'); let cancelled = false;
+  const cb = document.querySelector('#ffcancel'); if (cb) cb.onclick = () => { cancelled = true; box.close(); };
+  let input = null;
+  try {
+    box.status('Lecture de la vidéo…', 2);
+    const MB = await loadMB();
+    input = new MB.Input({ source: new MB.BlobSource(m.blob), formats: MB.ALL_FORMATS });
+    const tk = await input.getPrimaryVideoTrack(); if (!tk || !(await tk.canDecode())) throw new Error('vidéo non décodable');
+    const md = media(c.mediaId), ar = (md.w || 16) / (md.h || 9), SW = ar >= 1 ? 480 : Math.round(480 * ar), SH = ar >= 1 ? Math.round(480 / ar) : 480;
+    const ts = []; for (let i = 0; i < N; i++) ts.push(Math.max(0, srcTime(c, t0 + i / P.fps)));
+    const gen = new MB.CanvasSink(tk, { width: SW, height: SH, fit: 'fill', poolSize: 2 }).canvasesAtTimestamps(ts);
+    const R = 8, S = 22, PW = R * 2 + 1; let tpl = null, cx = u0 * SW, cy = v0 * SH;
+    const pts = []; let lost = -1; box.t0 = performance.now();
+    for (let i = 0; i < N; i++) {
+      if (cancelled) break;
+      const r = await gen.next(); if (r.done) break; if (!r.value) continue;
+      const g = grayOf(r.value.canvas, SW, SH);
+      const at = (x, y) => g[clamp(Math.round(y), 0, SH - 1) * SW + clamp(Math.round(x), 0, SW - 1)];
+      if (!tpl) { tpl = new Float32Array(PW * PW); for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) tpl[y * PW + x] = at(cx - R + x, cy - R + y); }
+      else {
+        let best = 1e18, bx = cx, by = cy;
+        for (let dy = -S; dy <= S; dy++) for (let dx = -S; dx <= S; dx++) {
+          const ox = Math.round(cx + dx) - R, oy = Math.round(cy + dy) - R; if (ox < 0 || oy < 0 || ox + PW > SW || oy + PW > SH) continue;
+          let s = 0;
+          for (let y = 0; y < PW && s < best; y++) { const row = (oy + y) * SW + ox, tr = y * PW; for (let x = 0; x < PW; x++) s += Math.abs(g[row + x] - tpl[tr + x]); }
+          if (s < best) { best = s; bx = cx + dx; by = cy + dy; }
+        }
+        if (best / (PW * PW) > 38) { lost = i; break; }
+        cx = bx; cy = by;
+        for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) tpl[y * PW + x] = tpl[y * PW + x] * .85 + at(cx - R + x, cy - R + y) * .15;
+      }
+      pts.push({ t: t0 + i / P.fps - c.start, u: cx / SW, v: cy / SH });
+      if (i % 5 === 0) { box.prog(i / N); box.status(`Suivi du point — ${tc(t0 + i / P.fps)}`); await new Promise(r => setTimeout(r, 0)); }
+    }
+    try { await gen.return(); } catch (e) { }
+    box.close();
+    if (cancelled && !pts.length) { toast('Suivi annulé'); return; }
+    if (pts.length < 2) { toast('Le point n\'a pas pu être suivi : choisissez un détail bien contrasté', 'err', 5000); return; }
+    act(() => { const keep = c.trk ? c.trk.pts.filter(q => q.t < pts[0].t - 1e-4) : []; c.trk = { pts: [...keep, ...pts] }; }); TRK.last = c.id;
+    SEL = new Set([c.id]); refreshAll();
+    if (lost >= 0) toast(`Le suivi a décroché à ${tc(t0 + lost / P.fps)} : placez la tête de lecture à cet endroit et recliquez sur le détail pour continuer`, 'err', 7000);
+    else toast(`Point suivi sur ${fmtDur(pts.length / P.fps)} : accrochez-y un texte, un flou ou une lumière`, 'ok', 5000);
+  } catch (e) { box.close(); toast('Suivi impossible : ' + (e.message || e), 'err', 5000); }
+  finally { try { input && input.dispose && input.dispose(); } catch (e) { } TRK.busy = false; }
+}
+/* accroches */
+function trkSrc() {
+  const sc = selClips(); let c = sc.find(x => x.type === 'video' && x.trk) || sc.map(x => x.follow && clipById(x.follow)).find(Boolean);
+  if (!c && TRK.last) c = clipById(TRK.last); if (!c) c = sc.find(x => x.type === 'video'); return c || null;
+}
+function trkTarget() { const c = trkSrc(); if (!c || !c.trk) { toast('Suivez d\'abord un point : outil Suivi (K), puis cliquez sur un détail de la vidéo'); return null; } return c; }
+function attachText() {
+  const c = trkTarget(); if (!c) return; const s = c.start + c.trk.pts[0].t, e = c.start + c.trk.pts[c.trk.pts.length - 1].t, sc = P.h / 1080;
+  act(() => { const tr = findTrack('v', s, e); const t = mkClip('text', { track: tr.id, start: fsnap(s), dur: Math.max(.5, fsnap(e - s)), follow: c.id, y: Math.round(-90 * sc), name: 'Texte suivi', txt: Object.assign(TXT0(), { s: 'Texte', size: Math.round(64 * sc), stroke: Math.round(4 * sc), strokeC: '#000000' }) }); P.clips.push(t); resolve([t]); SEL = new Set([t.id]); });
+  showPane('tool'); setTool('sel'); setTimeout(() => { const ta = $('#toolb textarea'); if (ta) { ta.focus(); ta.select(); } }, 60);
+}
+function attachFx(k) { const c = trkTarget(); if (!c) return; act(() => addEffect(c, k)); toast(efName(k) + ' accroché au point suivi', 'ok'); }
+function clearTrack() { const c = trkTarget(); if (!c) return; act(() => { delete c.trk; for (const o of P.clips) if (o.follow === c.id) delete o.follow; }); }
+function trackPane() {
+  const c = trkSrc();
+  const n = c && c.trk ? c.trk.pts.length : 0;
+  return sec('trkst', 'Point suivi', 'target', '#22d3ee', c ? (n ? `<div class="kv"><span>Suivi</span><b>${tc(c.start + c.trk.pts[0].t)} → ${tc(c.start + c.trk.pts[n - 1].t)}</b></div>
+      <div class="ibtns"><button class="ibtn" data-act="trkclear">${ic('trash')}Effacer le suivi</button><button class="ibtn" data-act="trkgo">${ic('target')}Reprendre ici</button></div>` : `<div class="ihint">Cliquez sur un détail de « ${esc(c.name || 'la vidéo')} » dans l'aperçu</div>`) : '<div class="ihint">Cliquez sur une vidéo dans l\'aperçu</div>') +
+    (n ? sec('trkat', 'Accrocher au point', 'plus', '#fcd34d', `<div class="ibtns" style="margin-top:2px">
+      <button class="ibtn" data-act="trktext">${ic('text')}Texte</button><button class="ibtn" data-act="trkfx:anonblur">${ic('eyeoff')}Flou</button>
+      <button class="ibtn" data-act="trkfx:anonpix">${ic('frame')}Pixels</button><button class="ibtn" data-act="trkfx:halopt">${ic('sun')}Halo</button>
+      <button class="ibtn" data-act="trkfx:flare">${ic('fx')}Reflet</button><button class="ibtn" data-act="trkfx:bolt">${ic('bolt')}Éclair</button></div>`) : '');
+}
+
+/* ==========================================================================
    Timeline (canvas) : règle, pistes, clips, glisser, rogner, lame, aimant
    ========================================================================== */
 const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: null, hover: null, W: 0, H: 0, dpr: 1 };
@@ -2529,6 +2774,9 @@ function drawTLClip(ctx, c, lay) {
   if (c.efx && c.efx.some(e => e.on !== false)) label = 'fx · ' + label;
   ctx.fillText(label, Math.max(r.x, 0) + 6, r.y + HH / 2 + .5);
   ctx.restore();
+  const kts = kfTimes(c);
+  if (kts.length) { ctx.fillStyle = '#fcd34d'; ctx.strokeStyle = '#0b0f17'; ctx.lineWidth = 1; for (const k of kts) { const x = r.x + k * TL.z, y = r.y + r.h - 7; if (x < r.x - 4 || x > r.x + r.w + 4) continue; ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y); ctx.closePath(); ctx.fill(); ctx.stroke(); } }
+  if (c.trk && c.trk.pts.length > 1) { const a = r.x + c.trk.pts[0].t * TL.z, b = r.x + c.trk.pts[c.trk.pts.length - 1].t * TL.z; ctx.fillStyle = '#22d3ee'; ctx.fillRect(Math.max(a, r.x), r.y + r.h - 3, Math.min(b, r.x + r.w) - Math.max(a, r.x), 2.5); }
   // contour
   rr(ctx, r.x + .5, r.y + .5, r.w - 1, r.h - 1, 6);
   if (sel) { ctx.strokeStyle = '#fcd34d'; ctx.lineWidth = 2; ctx.stroke(); }
@@ -2854,6 +3102,7 @@ const PAL = [
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
   ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
+  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple']]],
   ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function textEditor(c) {
@@ -2977,7 +3226,7 @@ function subPaneInit(box) {
 }
 
 /* ---------- Outil en cours ---------- */
-const TOOLS = { sub: ['Sous-titres', 'cc', 'U', '#facc15'], sel: ['Sélection', 'cursor', 'V', '#60a5fa'], blade: ['Lame', 'blade', 'C', '#f87171'], title: ['Titre', 'text', 'T', '#f59e0b'] };
+const TOOLS = { sub: ['Sous-titres', 'cc', 'U', '#facc15'], sel: ['Sélection', 'cursor', 'V', '#60a5fa'], blade: ['Lame', 'blade', 'C', '#f87171'], title: ['Titre', 'text', 'T', '#f59e0b'], track: ['Suivi de point', 'target', 'K', '#22d3ee'] };
 function renderToolPane() {
   const box = $('#toolb'); if (!box || !P) return;
   const [n, i, k, col] = TOOLS[TL.tool] || TOOLS.sel;
@@ -2988,6 +3237,7 @@ function renderToolPane() {
   if (TL.tool === 'title') h += sec('ttpl', 'Modèle', 'text', '#f59e0b', `<div class="tpls">${TITLES.map(t => `<button class="tpl${SET.titleTpl === t.k ? ' on' : ''}" data-tpl="${t.k}">${ic(t.i)}${t.n}</button>`).join('')}</div>
     <div class="ibtns"><button class="ibtn wide" data-act="title:${SET.titleTpl}">${ic('plus')}Insérer à la tête de lecture</button></div>`);
   if (TL.tool === 'sub') h += subPane();
+  if (TL.tool === 'track') h += trackPane();
   if (tc0 && TL.tool !== 'sub') h += textEditor(tc0);
   box.innerHTML = h;
 }
@@ -3001,6 +3251,7 @@ function updTools() {
   $$('[data-act="tool:blade"]').forEach(b => b.classList.toggle('active', TL.tool === 'blade'));
   $$('[data-act="tool:title"]').forEach(b => b.classList.toggle('active', TL.tool === 'title'));
   $$('[data-act="tool:sub"]').forEach(b => b.classList.toggle('active', TL.tool === 'sub'));
+  $$('[data-act="tool:track"]').forEach(b => b.classList.toggle('active', TL.tool === 'track'));
   $$('[data-act="magnet"]').forEach(b => b.classList.toggle('on', SET.magnet));
   $$('[data-act="safe"]').forEach(b => b.classList.toggle('on', SET.safe));
   $$('[data-act="loop"]').forEach(b => b.classList.toggle('on', SET.loop));
@@ -3129,6 +3380,12 @@ function drawOverlay() {
     h += `<line class="bx" x1="${top[0]}" y1="${top[1]}" x2="${rt[0]}" y2="${rt[1]}"/><circle class="hr" data-h="rot" cx="${rt[0]}" cy="${rt[1]}" r="${rad * 1.1}"/>`;
     pts.forEach((p, i) => { h += `<rect class="hd" data-h="sc" x="${p[0] - rad}" y="${p[1] - rad}" width="${rad * 2}" height="${rad * 2}" rx="${rad * .35}"/>`; });
   }
+  if (TL.tool === 'track' || (c && (c.trk || c.follow) && !PLAY.on)) {
+    const v = trkSrc();
+    if (v && v.trk) { const X = clipXform(v, T, trState(v, T)); const pp = v.trk.pts.filter((q, i) => i % 2 === 0).map(q => uvToProj(X, q.u, q.v));
+      if (pp.length > 1) h += `<polyline class="tkp" points="${pp.map(q => q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ')}"/>`;
+      const cp = trackPoint(v, T); if (cp) { const r = 10 / VW.k; h += `<circle class="tkc" cx="${cp.x}" cy="${cp.y}" r="${r}"/><path class="tkc" d="M${cp.x - r * 1.8} ${cp.y}h${r * 1.2}M${cp.x + r * .6} ${cp.y}h${r * 1.2}M${cp.x} ${cp.y - r * 1.8}v${r * 1.2}M${cp.x} ${cp.y + r * .6}v${r * 1.2}"/>`; } }
+  }
   if (VDRAG && VDRAG.gx) h += `<line class="gd" x1="${P.w / 2}" y1="0" x2="${P.w / 2}" y2="${P.h}"/>`;
   if (VDRAG && VDRAG.gy) h += `<line class="gd" x1="0" y1="${P.h / 2}" x2="${P.w}" y2="${P.h / 2}"/>`;
   if (h !== OVLH) { o.innerHTML = h; OVLH = h; }
@@ -3152,13 +3409,17 @@ function viewerInit() {
     if (!P || e.button !== 0) return;
     const p = vpt(e); const hk = e.target.closest && e.target.closest('[data-h]');
     let c = hk ? overlayClip() : hitClip(p);
+    if (TL.tool === 'track' && !hk) { const v = c && c.type === 'video' ? c : P.clips.filter(x => x.type === 'video' && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0];
+      if (!v) { toast('Placez la tête de lecture sur une vidéo puis cliquez sur le détail à suivre'); return; }
+      SEL = new Set([v.id]); refreshInsp(); TLdraw(); const uv = projToUV(clipXform(v, T, trState(v, T)), p.x, p.y);
+      if (uv.u < 0 || uv.u > 1 || uv.v < 0 || uv.v > 1) { toast('Cliquez à l\'intérieur de la vidéo'); return; } trackFrom(v, uv.u, uv.v); return; }
     if (TL.tool === 'title' && !hk && (!c || c.type !== 'text')) { addTitle(SET.titleTpl, { x: p.x - P.w / 2, y: p.y - P.h / 2 }); return; }
     if (!c) { if (SEL.size) { SEL.clear(); refreshInsp(); TLdraw(); drawOverlay(); } return; }
     if (PLAY.on) pause();
     if (!SEL.has(c.id) || SEL.size > 1) { SEL = new Set([c.id]); refreshInsp(); TLdraw(); }
     w.setPointerCapture(e.pointerId); begin();
     const X = clipXform(c, T, trState(c, T));
-    VDRAG = { c, k: hk ? hk.dataset.h : 'move', p0: p, o: { x: c.x, y: c.y, sc: c.sc, rot: c.rot }, cx: X.cx, cy: X.cy, d0: Math.hypot(p.x - X.cx, p.y - X.cy) || 1, a0: Math.atan2(p.y - X.cy, p.x - X.cx) };
+    VDRAG = { c, k: hk ? hk.dataset.h : 'move', p0: p, o: { x: pv(c, 'x', T), y: pv(c, 'y', T), sc: pv(c, 'sc', T), rot: pv(c, 'rot', T) }, cx: X.cx, cy: X.cy, d0: Math.hypot(p.x - X.cx, p.y - X.cy) || 1, a0: Math.atan2(p.y - X.cy, p.x - X.cx) };
     drawOverlay();
   });
   w.addEventListener('pointermove', e => {
@@ -3167,14 +3428,14 @@ function viewerInit() {
     if (d.k === 'move') {
       let nx = d.o.x + p.x - d.p0.x, ny = d.o.y + p.y - d.p0.y; const th = 10 / VW.k; d.gx = d.gy = false;
       if (!e.altKey) { if (Math.abs(nx) < th) { nx = 0; d.gx = true; } if (Math.abs(ny) < th) { ny = 0; d.gy = true; } }
-      c.x = Math.round(nx); c.y = Math.round(ny);
+      setPV(c, 'x', Math.round(nx), T); setPV(c, 'y', Math.round(ny), T);
     } else if (d.k === 'sc') {
-      c.sc = clamp(d.o.sc * Math.hypot(p.x - d.cx, p.y - d.cy) / d.d0, 0.02, 20);
-      if (!e.altKey && Math.abs(c.sc - 1) < 0.03) c.sc = 1;
+      let sc = clamp(d.o.sc * Math.hypot(p.x - d.cx, p.y - d.cy) / d.d0, 0.02, 20);
+      if (!e.altKey && Math.abs(sc - 1) < 0.03) sc = 1; setPV(c, 'sc', sc, T);
     } else if (d.k === 'rot') {
       let a = d.o.rot + (Math.atan2(p.y - d.cy, p.x - d.cx) - d.a0) * 180 / Math.PI;
       a = ((a + 540) % 360) - 180; if (e.shiftKey) a = Math.round(a / 15) * 15; else if (Math.abs(a) < 2) a = 0;
-      c.rot = Math.round(a * 10) / 10;
+      setPV(c, 'rot', Math.round(a * 10) / 10, T);
     }
     reqDraw();
   });
@@ -3213,6 +3474,7 @@ function updTC() {
   const a = $('#tcur'); if (a) a.textContent = tc(T);
   const d = $('#tdur'); if (d) d.textContent = tc(projDur());
   const m = $('#tcmini'); if (m) m.textContent = tc(T, P.fps, false);
+  updKfUI();
   if (TL.tool === 'sub') $$('#toolb .subrow').forEach(r => r.classList.toggle('cur', T >= +r.dataset.s && T < +r.dataset.e));
 }
 
@@ -3223,7 +3485,8 @@ function sec(id, title, icn, color, body) {
 }
 function sl(k, label, min, max, step, val, opt = {}) {
   const mul = opt.mul || 1, v = val * mul, f = opt.fmt || (x => (Math.round(x * 100) / 100) + (opt.u || ''));
-  return `<div class="f"><label>${label}<b data-v="${k}">${f(v)}</b></label><input type="range" data-k="${k}" data-mul="${mul}" data-u="${opt.u || ''}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
+  const kb = opt.kf ? `<button class="kfb${hasKfAt(opt.kf, k, T) ? ' on' : ''}${kfList(opt.kf, k) ? ' has' : ''}" data-kf="${k}" title="Image clé : ajouter / retirer à la tête de lecture">◆</button>` : '';
+  return `<div class="f"><label><span>${kb}${label}</span><b data-v="${k}">${f(v)}</b></label><input type="range" data-k="${k}" data-mul="${mul}" data-u="${opt.u || ''}" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
 }
 const tog = (k, label, on) => `<label class="tog">${label}<input type="checkbox" data-k="${k}"${on ? ' checked' : ''}><i></i></label>`;
 function refreshInsp() {
@@ -3246,9 +3509,11 @@ function refreshInsp() {
     <div class="chips" style="grid-template-columns:repeat(8,1fr)">${['#000000', '#ffffff', '#363c98', '#111827', '#b91c1c', '#059669', '#f59e0b', '#ec4899'].map(k => `<button class="chip" data-do="col:${k}" title="${k}"><i style="background:${k};height:18px;border:1px solid #fff3"></i></button>`).join('')}</div>`);
   if (vis) {
     h += sec('frame', 'Cadre', 'frame', '#60a5fa', `
-      <div class="f2">${sl('x', 'Position X', -P.w, P.w, 1, c.x, { u: '' })}${sl('y', 'Position Y', -P.h, P.h, 1, c.y, { u: '' })}</div>
-      ${sl('sc', 'Échelle', 2, 400, 1, c.sc, { mul: 100, fmt: pct })}
-      <div class="f2">${sl('rot', 'Rotation', -180, 180, 0.5, c.rot, { u: '°' })}${sl('op', 'Opacité', 0, 100, 1, c.op, { mul: 100, fmt: pct })}</div>
+      <div class="f2">${sl('x', 'Position X', -P.w, P.w, 1, pv(c, 'x', T), { u: '', kf: c })}${sl('y', 'Position Y', -P.h, P.h, 1, pv(c, 'y', T), { u: '', kf: c })}</div>
+      ${sl('sc', 'Échelle', 2, 400, 1, pv(c, 'sc', T), { mul: 100, fmt: pct, kf: c })}
+      <div class="f2">${sl('rot', 'Rotation', -180, 180, 0.5, pv(c, 'rot', T), { u: '°', kf: c })}${sl('op', 'Opacité', 0, 100, 1, pv(c, 'op', T), { mul: 100, fmt: pct, kf: c })}</div>
+      ${kfTimes(c).length ? `<div class="kfnav"><button class="ibtn" data-do="kfprev">${ic('arrowL')}</button><span>◆ ${kfTimes(c).length} image${kfTimes(c).length > 1 ? 's' : ''} clé${kfTimes(c).length > 1 ? 's' : ''}</span><button class="ibtn" data-do="kfnext">${ic('arrowR')}</button><button class="ibtn" data-do="kfclear" title="Retirer toutes les images clés">${ic('trash')}</button></div>` : ''}
+      ${c.follow && clipById(c.follow) ? `<div class="kfnav"><span>${ic('center')} Accroché au suivi de « ${esc(clipById(c.follow).name || 'vidéo')} »</span><button class="ibtn" data-do="unfollow">Détacher</button></div>` : ''}
       <div class="ibtns"><button class="ibtn" data-do="center">${ic('center')}Centrer</button><button class="ibtn" data-do="fit">${ic('frame')}Ajuster</button>
       <button class="ibtn" data-do="fill">${ic('fill')}Remplir</button><button class="ibtn" data-do="resetxf">${ic('reset')}Réinitialiser</button></div>`);
   }
@@ -3267,7 +3532,9 @@ function refreshInsp() {
   if (vis) {
     const ef = c.efx || [];
     h += sec('efx', `Effets${ef.length ? ' · ' + ef.length : ''}`, 'fx', '#a78bfa', ef.map((e, i) => { const d = EFMAP[e.k] || {}; return `<div class="efrow${e.on === false ? ' off' : ''}"><span class="efn">${esc(efName(e.k))}</span><button data-efon="${i}" title="${e.on === false ? 'Activer' : 'Désactiver'}">${ic(e.on === false ? 'eyeoff' : 'eye')}</button><button data-efdel="${i}" title="Retirer">${ic('x')}</button></div>
-      ${d.sl === false ? '' : `<div class="f"><label>Intensité<b data-efv="${i}">${e.a} %</b></label><input type="range" data-efa="${i}" min="0" max="100" step="1" value="${e.a}"></div>`}
+      ${d.col1 ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || d.c10}"><span style="flex:1;font-size:12px;color:var(--g400)">${d.col1}</span>${d.pick ? `<button class="ibtn" data-efpick="${i}" title="Cliquer ensuite sur la couleur dans l'aperçu">${ic('target')}Pipette</button>` : ''}</div>` : ''}
+      ${d.sl === false ? '' : `<div class="f"><label>${d.aN || 'Intensité'}<b data-efv="${i}">${e.a} %</b></label><input type="range" data-efa="${i}" min="0" max="100" step="1" value="${e.a}"></div>`}
+      ${(d.params || []).filter(p => !(c.trk && (p.k === 'px' || p.k === 'py'))).map(p => `<div class="f"><label>${p.n}<b data-efpv="${i}:${p.k}">${e[p.k] ?? p.def}</b></label><input type="range" data-efp="${i}:${p.k}" min="${p.min}" max="${p.max}" step="1" value="${e[p.k] ?? p.def}"></div>`).join('')}
       ${d.cols ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || '#1e1b4b'}" title="Couleur des ombres"><input type="color" data-efc="${i}:c2" value="${e.c2 || '#f472b6'}" title="Couleur des lumières"></div>` : ''}`; }).join('') +
       `<div class="ibtns"><button class="ibtn wide" data-act="pane:fx">${ic('fx')}Catalogue des effets</button></div>`);
   }
@@ -3340,6 +3607,9 @@ function inspInit(box) {
     for (const c of selClips()) if (isVisual(c)) { const tr = trTarget(c, side); if (tr.t !== 'none') tr.d = v; }
     const b = box.querySelector(`[data-tv="${side}"]`); if (b) b.textContent = v.toFixed(2) + ' s'; reqDraw(); TLdraw();
   });
+  box.addEventListener('input', e => { const el = e.target; if (el.dataset.efp === undefined) return; e.stopImmediatePropagation(); const [i, k] = el.dataset.efp.split(':'), c = selClips()[0]; if (!c || !c.efx[+i]) return; begin(); c.efx[+i][k] = +el.value; const b = box.querySelector(`[data-efpv="${el.dataset.efp}"]`); if (b) b.textContent = el.value; reqDraw(); });
+  box.addEventListener('change', e => { if (e.target.dataset.efp !== undefined) { e.stopImmediatePropagation(); commit(); } });
+  box.addEventListener('click', e => { const b = e.target.closest('[data-efpick]'); if (!b) return; const c = selClips()[0]; if (!c) return; PICKFX = { c, i: +b.dataset.efpick }; $('#vwrap').style.cursor = 'crosshair'; toast('Cliquez sur la couleur du fond dans l\'aperçu'); });
   box.addEventListener('input', e => { const el = e.target; if (el.dataset.efa === undefined) return; e.stopImmediatePropagation(); const c = selClips()[0]; if (!c || !c.efx[+el.dataset.efa]) return; begin(); c.efx[+el.dataset.efa].a = +el.value; const b = box.querySelector(`[data-efv="${el.dataset.efa}"]`); if (b) b.textContent = el.value + ' %'; reqDraw(); });
   box.addEventListener('change', e => { const el = e.target; if (el.dataset.efa !== undefined) { e.stopImmediatePropagation(); commit(); return; } if (el.dataset.efc) { e.stopImmediatePropagation(); const [i, k] = el.dataset.efc.split(':'); act(() => { const c = selClips()[0]; if (c && c.efx[+i]) c.efx[+i][k] = el.value; }); } });
   box.addEventListener('click', e => {
@@ -3357,7 +3627,7 @@ function inspInit(box) {
     const v = read(el); begin();
     if (k === 'start') { if (!commitNow) return; const t = parseTC(el.value); if (t === null) { el.value = tc(selClips()[0].start); return; } const list = selClips(); const d = fsnap(Math.max(0, t)) - list[0].start; for (const c of list) c.start = Math.max(0, c.start + d); resolve(list); }
     else if (k === 'dur') { if (!commitNow) return; for (const c of selClips()) { let dv = Math.max(1 / P.fps, fsnap(+v || c.dur)); if (isAV(c)) dv = Math.min(dv, srcLen(c)); c.dur = dv; } resolve(selClips()); }
-    else for (const c of selClips()) if (applies(c, k)) setPath(c, k, v);
+    else for (const c of selClips()) if (applies(c, k)) { if (KFP.includes(k)) setPV(c, k, v, T); else setPath(c, k, v); }
     const lab = box.querySelector(`[data-v="${k}"]`);
     if (lab && el.type === 'range') { const mul = +el.dataset.mul || 1, x = parseFloat(el.value); lab.textContent = mul === 100 || ['fx.bri', 'fx.con', 'fx.sat', 'fx.gray', 'fx.sepia', 'fx.vig'].includes(k) ? Math.round(x) + ' %' : (Math.round(x * 100) / 100) + (el.dataset.u || ''); }
     if (k === 'txt.font') { ensureFont(v); el.style.fontFamily = `'${v}'`; }
@@ -3376,6 +3646,10 @@ function inspInit(box) {
     act(() => {
       for (const c of list) {
         switch (k) {
+          case 'kfprev': return jumpKf(-1);
+          case 'kfnext': return jumpKf(1);
+          case 'kfclear': clearKf(c); break;
+          case 'unfollow': { const tg = clipById(c.follow); if (tg) { const p = trackPoint(tg, T); if (p) { c.x = Math.round(p.x - P.w / 2 + c.x); c.y = Math.round(p.y - P.h / 2 + c.y); } } delete c.follow; break; }
           case 'center': if (isVisual(c)) { c.x = 0; c.y = 0; } break;
           case 'fit': if (isVisual(c)) { c.sc = 1; c.x = 0; c.y = 0; } break;
           case 'fill': if (isVisual(c)) { const b0 = baseSize(c); c.sc = Math.max(P.w / b0.w, P.h / b0.h); c.x = 0; c.y = 0; } break;
@@ -3408,6 +3682,32 @@ function afterLoad() {
   T = Math.min(T, Math.max(projDur(), 0));
   refreshAll();
 }
+
+/* bouton ◆ et mise à jour des curseurs animés quand la tête de lecture bouge */
+document.addEventListener('click', e => { const b = e.target.closest('[data-kf]'); if (!b || !P) return; const c = selClips()[0]; if (!c) return; act(() => { for (const x of selClips()) if (isVisual(x)) toggleKf(x, b.dataset.kf, T); }); });
+function updKfUI() {
+  const c = selClips()[0]; if (!c || !c.kf || !Object.keys(c.kf).length) return;
+  const box = $('#inspb'); if (!box || box.contains(document.activeElement) && document.activeElement.type === 'range') return;
+  for (const k of KFP) {
+    const inp = box.querySelector(`input[data-k="${k}"]`); if (!inp) continue;
+    const mul = +inp.dataset.mul || 1, v = pv(c, k, T) * mul; inp.value = v;
+    const lab = box.querySelector(`[data-v="${k}"]`); if (lab) lab.textContent = mul === 100 ? Math.round(v) + ' %' : (Math.round(v * 100) / 100) + (inp.dataset.u || '');
+    const kb = box.querySelector(`[data-kf="${k}"]`); if (kb) kb.classList.toggle('on', hasKfAt(c, k, T));
+  }
+}
+
+/* pipette du fond vert : on échantillonne l'image sans l'effet */
+let PICKFX = null;
+$('#vwrap').addEventListener('pointerdown', ev => {
+  if (!PICKFX || !P) return; ev.preventDefault(); ev.stopPropagation();
+  const { c, i } = PICKFX; PICKFX = null; $('#vwrap').style.cursor = '';
+  const ef = c.efx[i]; if (!ef) return;
+  ef.on = false; drawFrame(CX, T);
+  const p = vpt(ev), x0 = clamp(Math.round(p.x) - 2, 0, P.w - 5), y0 = clamp(Math.round(p.y) - 2, 0, P.h - 5);
+  let r = 0, g = 0, b = 0; try { const d = CX.getImageData(x0, y0, 5, 5).data; for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; } } catch (e) { }
+  ef.on = true; const hx = v => Math.round(v / 25).toString(16).padStart(2, '0');
+  act(() => { ef.c1 = '#' + hx(r) + hx(g) + hx(b); }); toast('Couleur du fond prélevée : ' + ef.c1, 'ok');
+}, true);
 
 /* ==========================================================================
    Fichiers : enregistrer / ouvrir (.mmv), backup auto, export, voix off
@@ -4269,6 +4569,13 @@ const GUIDE = [
     <p>Pour une incrustation (image dans l'image), mettez la vidéo sur la piste V2, réduisez-la et placez-la dans un coin.</p>
     <h3>Les looks</h3>
     <p>Le bloc <b>Couleur et looks</b> propose des ambiances toutes prêtes (Vif, Chaud, Vintage, N&amp;B, Nuit…) avec un aperçu sur votre propre image. Les réglages fins permettent ensuite de doser luminosité, contraste, saturation, teinte, flou et vignettage.</p>`],
+  ['imgcles', 'diamond', 'Images clés', `
+    <p class="lead">Les images clés animent un élément : il part d'un endroit et arrive à un autre, grossit, tourne ou s'efface progressivement.</p>
+    <ul><li>Sélectionnez le clip, placez la tête de lecture au début du mouvement et cliquez sur le petit losange ◆ à côté de <b>Position</b>, <b>Échelle</b>, <b>Rotation</b> ou <b>Opacité</b> dans le bloc <b>Cadre</b>.</li>
+    <li>Avancez la tête de lecture, puis déplacez l'élément dans l'aperçu ou bougez le curseur : une nouvelle image clé se crée toute seule.</li>
+    <li>Entre deux images clés, le mouvement est calculé en douceur (départ et arrivée ralentis).</li>
+    <li>Les losanges apparaissent sur le clip dans la timeline. Les flèches ◂ ▸ du bloc Cadre sautent d'une image clé à l'autre ; recliquer sur un losange allumé le supprime ; la corbeille les efface toutes.</li></ul>
+    <div class="tip"><b>Exemple :</b> un zoom lent sur une photo (effet documentaire) = une image clé d'échelle à 100 % au début du clip et une à 130 % à la fin.</div>`],
   ['titres', 'text', 'Titres et textes', `
     <p class="lead">Un titre est un clip comme un autre : il se déplace, se rogne et reçoit des transitions.</p>
     <p>Prenez l'outil ${gk('text')} <b>Titre</b> (<kbd>T</kbd>), choisissez un modèle dans le volet <b>Outil en cours</b> (sous-titre, bandeau nom, grand titre, machine à écrire, générique, carton…) puis cliquez dans l'aperçu. Le titre se pose sur une piste au-dessus de vos images.</p>
@@ -4279,11 +4586,27 @@ const GUIDE = [
     <li><b>Animation</b> : <b>Machine</b> fait apparaître les lettres une à une, <b>Défilement</b> fait monter le texte du bas vers le haut sur toute la durée du clip, comme un générique de fin.</li></ul>
     <div class="tip"><b>Astuce :</b> pour qu'un générique défile plus lentement, allongez simplement le clip.</div>`],
   ['effets', 'fx', 'Effets', `
-    <p class="lead">Le volet <b>Effets</b> rassemble plus de 30 effets à appliquer sur un clip : mouvement, couleur, flou et lumière, déformation, rétro et ambiance. Survolez une vignette pour la voir jouer.</p>
+    <p class="lead">Le volet <b>Effets</b> rassemble une quarantaine d'effets à appliquer sur un clip : mouvement, couleur, flou et lumière, déformation, rétro, ambiance, fond vert, suivi et lumières dynamiques. Survolez une vignette pour la voir jouer.</p>
     <ul><li><b>Glissez</b> une vignette sur un clip de la timeline (il s'entoure de violet), ou <b>cliquez</b> dessus pour l'ajouter aux clips sélectionnés.</li>
     <li>Les effets se <b>cumulent</b> : VHS + Neige, Néon + Pulsation… Un clip qui porte des effets affiche « fx » dans la timeline.</li>
     <li>Dans les propriétés du clip, le bloc <b>Effets</b> liste les effets posés : réglez leur intensité, masquez-les temporairement avec l'œil ou retirez-les avec la croix.</li></ul>
     <div class="tip"><b>Astuce :</b> les effets d'ambiance (neige, pluie, confettis, étincelles) se posent aussi sur un titre ou une couleur unie.</div>`],
+  ['sfx', 'target', 'Effets spéciaux', `
+    <p class="lead">La famille <b>Effets spéciaux</b> de la palette regroupe le fond vert, le suivi de point et les lumières dynamiques.</p>
+    <h3>Fond vert</h3>
+    <ul><li>Mettez la vidéo tournée sur fond vert sur la piste <b>du dessus</b> (V2) et le nouveau décor sur la piste du dessous (V1).</li>
+    <li>Sélectionnez la vidéo et cliquez sur ${gk('drop')} <b>Fond vert</b> : le fond devient transparent.</li>
+    <li>Dans le bloc <b>Effets</b> des propriétés, la <b>pipette</b> permet de cliquer sur la couleur exacte du fond dans l'aperçu (vert, bleu ou autre). <b>Tolérance</b> élargit la plage de couleurs retirées, <b>Adoucissement des bords</b> lisse le détourage, <b>Anti-reflets de couleur</b> retire le reflet vert sur les cheveux et la peau.</li></ul>
+    <h3>Suivi de point</h3>
+    <ul><li>Prenez l'outil ${gk('target')} <b>Suivi de point</b> (<kbd>K</kbd>), placez la tête de lecture là où commence le suivi, puis cliquez sur un détail bien contrasté de la vidéo (une main, un logo, un visage).</li>
+    <li>MOMOmov suit ce détail image par image jusqu'à la fin du clip. Le trajet s'affiche en pointillés cyan dans l'aperçu.</li>
+    <li>S'il décroche (détail caché, mouvement trop rapide), placez la tête de lecture à cet endroit et recliquez sur le détail : le suivi reprend à partir de là.</li>
+    <li>Dans le volet <b>Outil en cours</b>, <b>accrochez au point</b> : un <b>texte</b> qui suit le détail, un <b>flou</b> ou des <b>pixels</b> pour anonymiser un visage ou une plaque, un <b>halo</b>, un <b>reflet</b> (lens flare) ou un <b>éclair</b>.</li>
+    <li>Un texte accroché garde son décalage : déplacez-le dans l'aperçu pour le placer au-dessus du détail. « Détacher » dans ses propriétés le libère.</li></ul>
+    <h3>Lumières dynamiques</h3>
+    <ul><li><b>Halo</b>, <b>Reflet</b> et <b>Éclair</b> (et aussi Flou et Pixels) se posent aussi sans suivi : réglez alors leur position dans le bloc <b>Effets</b> des propriétés.</li>
+    <li><b>Pulsation</b> fait battre le halo ; <b>Réagit au son</b> fait vibrer la lumière au rythme du son du clip (une vidéo de concert, par exemple).</li></ul>
+    <div class="tip"><b>Idée :</b> un éclair sur chaque main d'un personnage = deux suivis de point (dupliquez la vidéo sur deux pistes, un suivi par copie) avec un Éclair accroché à chacun.</div>`],
   ['trans', 'trans', 'Transitions', `
     <p class="lead">Le volet <b>Transitions</b> est un catalogue de plus de 50 effets, rangés par famille : fondus, glissements, volets, formes, mouvements et effets stylisés. Survolez une vignette pour la voir jouer.</p>
     <h3>Poser une transition</h3>
@@ -4369,6 +4692,7 @@ const GUIDE = [
       <tr><td><kbd>S</kbd></td><td>Scinder à la tête de lecture</td></tr>
       <tr><td><kbd>T</kbd></td><td>Outil Titre (cliquer ensuite dans l'aperçu)</td></tr>
       <tr><td><kbd>U</kbd></td><td>Outil Sous-titres</td></tr>
+      <tr><td><kbd>K</kbd></td><td>Outil Suivi de point</td></tr>
       <tr><td><kbd>M</kbd></td><td>Poser un marqueur</td></tr>
       <tr><td><kbd>I</kbd> <kbd>O</kbd></td><td>Début / fin de zone · <kbd>Alt</kbd>+<kbd>X</kbd> pour l'effacer</td></tr>
       <tr><td><kbd>Suppr</kbd></td><td>Supprimer · <kbd>Maj</kbd>+<kbd>Suppr</kbd> en refermant le vide</td></tr>
@@ -4710,6 +5034,11 @@ function doAct(a) {
     case 'hub': return window.open('https://mowiss.github.io/Momohub/', '_blank', 'noopener');
     case 'tool': return setTool(v);
     case 'pane': return togglePane(v);
+    case 'trkclear': return clearTrack();
+    case 'trkgo': { const c = trkTarget(); if (!c) return; const q = trackPoint(c, T); const X = clipXform(c, T, trState(c, T)); if (q) { const uv = projToUV(X, q.x, q.y); trackFrom(c, uv.u, uv.v); } return; }
+    case 'trktext': return attachText();
+    case 'trkfx': return attachFx(v);
+    case 'fxquick': { const c = selClips().find(x => isVisual(x)) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; if (!c) { toast('Sélectionnez un clip'); return; } act(() => addEffect(c, v)); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(v) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return; }
     case 'dvd': return openDvd();
     case 'subdetect': return subDetect();
     case 'subwhisper': return wDialog();
@@ -4839,6 +5168,7 @@ document.addEventListener('keydown', e => {
     case 's': return doSplit(T);
     case 't': return setTool('title');
     case 'u': return setTool('sub');
+    case 'k': return setTool('track');
     case 'm': return addMarker();
     case 'i': return setIO('a');
     case 'o': return setIO('b');
