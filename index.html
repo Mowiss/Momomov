@@ -279,6 +279,7 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .fp-h{font:10px system-ui;text-transform:uppercase;letter-spacing:.08em;color:var(--g500);padding:7px 12px 3px}
 .fp-foot{font-size:11px;color:var(--g500);padding:5px 12px;border-top:1px solid var(--g700)}
 /* Sous-titres */
+.ibtn.wbtn{background:linear-gradient(90deg,#4f57c9,#7c3aed);border-color:#9aa1ff;color:#fff;padding:8px}
 .thd.s .tn{background:#facc15}
 .subrow{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:start;padding:5px;border-radius:8px;border:1px solid transparent}
 .subrow.cur{border-color:#facc15;background:color-mix(in srgb,#facc15 10%,#111827)}
@@ -2189,6 +2190,159 @@ function subExport(kind) {
 }
 
 /* ==========================================================================
+   Transcription automatique locale : Whisper (transformers.js, open source)
+   Le modèle tourne dans un worker, sur la carte graphique (WebGPU) ou le processeur.
+   ========================================================================== */
+const TRJS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js';
+const WMODELS = [
+  { k: 'tiny', n: 'Rapide', d: 'Whisper tiny · ≈ 40 Mo · brouillon rapide', id: 'onnx-community/whisper-tiny' },
+  { k: 'base', n: 'Équilibré', d: 'Whisper base · ≈ 80 Mo · bon compromis', id: 'onnx-community/whisper-base' },
+  { k: 'small', n: 'Précis', d: 'Whisper small · ≈ 250 Mo · meilleur résultat, plus lent', id: 'onnx-community/whisper-small' }
+];
+const WLANGS = [['french', 'Français'], ['english', 'Anglais'], ['spanish', 'Espagnol'], ['german', 'Allemand'], ['italian', 'Italien'], ['portuguese', 'Portugais'], ['dutch', 'Néerlandais'], ['arabic', 'Arabe'], ['', 'Détection automatique']];
+const WSET = Object.assign({ model: 'base', lang: 'french', gpu: true }, (() => { try { return JSON.parse(localStorage.getItem('momomov.whisper') || '{}'); } catch (e) { return {}; } })());
+const W = { worker: null, key: null, seq: 0, wait: new Map(), dl: {} };
+const WORKER_SRC = `
+import { pipeline, env } from '${TRJS}';
+env.allowLocalModels = false;
+let asr = null, key = null;
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (m.type === 'load') {
+    try {
+      if (!asr || key !== m.key) {
+        asr = null;
+        asr = await pipeline('automatic-speech-recognition', m.model, { device: m.device, dtype: m.dtype, progress_callback: (p) => self.postMessage({ type: 'dl', p }) });
+        key = m.key;
+      }
+      self.postMessage({ type: 'ready', id: m.id });
+    } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+  } else if (m.type === 'run') {
+    try {
+      const opt = { task: 'transcribe', return_timestamps: true, chunk_length_s: 30, stride_length_s: 5 };
+      if (m.lang) opt.language = m.lang;
+      const out = await asr(m.audio, opt);
+      self.postMessage({ type: 'result', id: m.id, chunks: out.chunks || [{ text: out.text, timestamp: [0, null] }] });
+    } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+  }
+};`;
+function wWorker() {
+  if (W.worker) return W.worker;
+  W.worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' })), { type: 'module' });
+  W.worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === 'dl') { const p = m.p; if (p.status === 'progress' && p.file) { W.dl[p.file] = [p.loaded || 0, p.total || 0]; W.onDl && W.onDl(); } return; }
+    const w = W.wait.get(m.id); if (!w) return; W.wait.delete(m.id);
+    if (m.type === 'error') w.ko(new Error(m.message)); else w.ok(m);
+  };
+  W.worker.onerror = e => { e.preventDefault && e.preventDefault(); for (const w of W.wait.values()) w.ko(new Error(e.message || 'le module n\'a pas pu démarrer')); W.wait.clear(); wKill(); };
+  return W.worker;
+}
+function wCall(msg, transfer) { const id = ++W.seq; return new Promise((ok, ko) => { W.wait.set(id, { ok, ko }); wWorker().postMessage(Object.assign({ id }, msg), transfer || []); }); }
+function wKill() { try { W.worker && W.worker.terminate(); } catch (e) { } W.worker = null; W.key = null; for (const w of W.wait.values()) w.ko(new Error('annulé')); W.wait.clear(); }
+async function hasWebGPU() { try { return !!(navigator.gpu && await navigator.gpu.requestAdapter()); } catch (e) { return false; } }
+async function wLoad(mdl, onDl) {
+  const gpu = WSET.gpu && await hasWebGPU();
+  const tries = gpu ? [['webgpu', { encoder_model: 'fp32', decoder_model_merged: 'q4' }], ['wasm', 'q8']] : [['wasm', 'q8']];
+  let last;
+  for (const [device, dtype] of tries) {
+    const key = mdl.id + '|' + device;
+    if (W.key === key) return device;
+    W.dl = {}; W.onDl = onDl;
+    try { await wCall({ type: 'load', model: mdl.id, device, dtype, key }); W.key = key; return device; }
+    catch (e) { last = e; if (/annulé/.test(e.message)) throw e; wKill(); }
+  }
+  throw last || new Error('chargement impossible');
+}
+/* fenêtres de ≤ 28 s coupées dans les silences */
+function wWindows(segs, a, b) {
+  if (!segs.length) { const out = []; for (let t = a; t < b; t += 28) out.push([t, Math.min(b, t + 28)]); return out; }
+  const out = []; let cur = null;
+  for (const [s, e] of segs) {
+    if (cur && e - cur[0] <= 28) cur[1] = e;
+    else { if (cur) out.push(cur); cur = [s, e]; }
+    while (cur[1] - cur[0] > 28) { out.push([cur[0], cur[0] + 28]); cur = [cur[0] + 28, cur[1]]; }
+  }
+  if (cur) out.push(cur);
+  return out.map(([s, e]) => [Math.max(a, s - .25), Math.min(b, e + .3)]);
+}
+const W_JUNK = /^\s*([\[(♪].*[\])♪]|sous-titr(age|es) .*|merci d'avoir regardé.*|\.+|…)\s*$/i;
+function wDialog() {
+  if (!P.clips.some(isAV)) { toast('Aucun son dans le montage : ajoutez une vidéo ou un son'); return; }
+  const [a, b] = subRange();
+  const m = modal(`<div class="mh">${ic('mic', '', ' style="color:#facc15"')}Transcrire la voix (Whisper)<button class="x" data-close>${ic('x')}</button></div>
+    <div class="mb">
+      <div class="isub" style="margin-top:0">Modèle</div>
+      <div class="dvdq" id="wmod">${WMODELS.map(x => `<button data-wm="${x.k}" class="${WSET.model === x.k ? 'on' : ''}"><b>${x.n}</b><small>${x.d}</small></button>`).join('')}</div>
+      <div class="f"><label>Langue parlée</label><select id="wlang">${WLANGS.map(([k, n]) => `<option value="${k}"${k === WSET.lang ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+      ${tog('wgpu', 'Utiliser la carte graphique (WebGPU) si disponible', WSET.gpu)}
+      <div class="kv" style="margin-top:6px"><span>Partie transcrite</span><b>${P.io ? 'zone ' : ''}${tc(a)} → ${tc(b)} (${fmtDur(b - a)})</b></div>
+      <div class="kv"><span>Fonctionnement</span><b>100 % local, gratuit, sans limite</b></div>
+      <p style="color:var(--g500);font-size:12px;margin:10px 0 0">Le modèle est téléchargé une seule fois depuis Hugging Face puis gardé par le navigateur. Les sous-titres existants dans cette partie seront remplacés.</p>
+    </div>
+    <div class="mf"><button class="btn" data-close>Annuler</button><button class="btn pri" id="wgo">${ic('mic')}Transcrire</button></div>`);
+  $('#wmod', m.el).onclick = e => { const x = e.target.closest('[data-wm]'); if (!x) return; WSET.model = x.dataset.wm; $$('#wmod button', m.el).forEach(y => y.classList.toggle('on', y === x)); };
+  $('#wgo', m.el).onclick = () => {
+    WSET.lang = $('#wlang', m.el).value; WSET.gpu = $('[data-k="wgpu"]', m.el).checked;
+    try { localStorage.setItem('momomov.whisper', JSON.stringify(WSET)); } catch (e) { }
+    m.close(); wTranscribe(a, b);
+  };
+}
+async function wTranscribe(a, b) {
+  const mdl = WMODELS.find(x => x.k === WSET.model) || WMODELS[1];
+  const box = ffBox('Transcription (Whisper)'); let cancelled = false;
+  const cbtn = document.querySelector('#ffcancel'); if (cbtn) cbtn.onclick = () => { cancelled = true; wKill(); box.close(); toast('Transcription annulée'); };
+  try {
+    box.status('Préparation du son…', 2);
+    const sr = 16000, mix = await renderMix(a, b, sr); if (cancelled) return;
+    const L = mix.getChannelData(0), R = mix.getChannelData(1), mono = new Float32Array(mix.length);
+    for (let i = 0; i < mono.length; i++) mono[i] = (L[i] + R[i]) * .5;
+    box.status('Repérage des passages parlés…', 4);
+    let segs = []; try { segs = await speechSegments(a, b); } catch (e) { }
+    const wins = wWindows(segs, a, b);
+    if (!wins.length) throw new Error('aucune parole détectée');
+    box.status(`Chargement du modèle ${mdl.n}…`, 5);
+    const t0 = performance.now();
+    const device = await wLoad(mdl, () => {
+      let l = 0, t = 0; for (const [x, y] of Object.values(W.dl)) { l += x; t += y; }
+      if (t) box.status(`Téléchargement du modèle ${mdl.n} (une seule fois) : ${(l / 1048576).toFixed(0)} / ${(t / 1048576).toFixed(0)} Mo`, l / t * 100);
+    });
+    if (cancelled) return;
+    const res = []; box.t0 = performance.now();
+    for (let i = 0; i < wins.length; i++) {
+      if (cancelled) return;
+      const [ws, we] = wins[i], s0 = Math.max(0, Math.round((ws - a) * sr)), s1 = Math.min(mono.length, Math.round((we - a) * sr));
+      if (s1 - s0 < sr * .3) continue;
+      box.status(`Transcription${device === 'webgpu' ? ' (carte graphique)' : ''} — passage ${i + 1} / ${wins.length}`);
+      box.prog(i / wins.length);
+      const audio = mono.slice(s0, s1);
+      const r = await wCall({ type: 'run', audio, lang: WSET.lang || null }, [audio.buffer]);
+      for (const c of r.chunks) {
+        const txt = String(c.text || '').trim(); if (!txt || W_JUNK.test(txt)) continue;
+        const cs = ws + (c.timestamp[0] ?? 0), ce = ws + (c.timestamp[1] ?? (we - ws));
+        res.push([Math.max(ws, cs), Math.min(we, Math.max(cs + .3, ce)), txt]);
+      }
+    }
+    box.prog(1);
+    if (!res.length) throw new Error('aucun texte reconnu');
+    /* découpe en sous-titres lisibles, durée répartie selon la longueur du texte */
+    const subs = [];
+    for (const [s, e, txt] of res) {
+      const parts = splitSubText(txt), tot = parts.reduce((x, p) => x + p.length, 0); let t = s;
+      for (const p of parts) { const d = (e - s) * p.length / tot; subs.push([t, t + d, p]); t += d; }
+    }
+    for (let i = 1; i < subs.length; i++) if (subs[i][0] < subs[i - 1][1]) subs[i - 1][1] = subs[i][0];
+    act(() => { clearSubs(a, b); const tr = subTrack(); for (const [s, e, t] of subs) if (e - s > .2) addSub(s, e, t, tr); });
+    box.close(); setTool('sub');
+    toast(`${subs.length} sous-titres transcrits en ${fmtDur((performance.now() - t0) / 1000)} : relisez-les dans la liste`, 'ok', 6000);
+  } catch (e) {
+    box.close(); if (cancelled) return;
+    const msg = e && e.message || String(e);
+    toast(/fetch|network|Failed|load/i.test(msg) ? 'Le modèle n\'a pas pu être téléchargé : vérifiez la connexion internet (seulement la première fois)' : 'Transcription impossible : ' + msg, 'err', 7000);
+  }
+}
+
+/* ==========================================================================
    Timeline (canvas) : règle, pistes, clips, glisser, rogner, lame, aimant
    ========================================================================== */
 const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: null, hover: null, W: 0, H: 0, dpr: 1 };
@@ -2760,7 +2914,7 @@ function renderFxPane() {
 /* ---------- Atelier sous-titres (volet Outil en cours) ---------- */
 function subPane() {
   const S = subStyle(), list = subClips();
-  return sec('subact', 'Créer', 'wave', '#34d399', `<div class="ibtns" style="margin-top:2px">
+  return sec('subact', 'Créer', 'wave', '#34d399', `<div class="ibtns" style="margin-top:2px"><button class="ibtn wide wbtn" data-act="subwhisper">${ic('mic')}Transcrire la voix (Whisper)</button></div><div class="ibtns">
       <button class="ibtn" data-act="subdetect">${ic('wave')}Détecter les phrases</button><button class="ibtn" data-act="subpaste">${ic('text')}Coller un texte</button>
       <button class="ibtn" data-act="subsync">${ic('keyb')}Synchro clavier</button><button class="ibtn" data-act="subadd">${ic('plus')}Sous-titre ici</button>
       <button class="ibtn" data-act="subimport">${ic('import')}Importer</button><button class="ibtn" data-act="subclear">${ic('trash')}Tout effacer</button>
@@ -4130,8 +4284,8 @@ const GUIDE = [
   ['soustitres', 'cc', 'Sous-titres', `
     <p class="lead">Les sous-titres ont leur propre piste <b>ST</b>, tout en haut de la timeline : on les déplace, les rogne et les coupe comme n'importe quel clip. Ils sont incrustés dans la vidéo à l'export, et peuvent aussi être enregistrés à part en SRT ou VTT.</p>
     <p>La famille <b>Sous-titres</b> de la palette regroupe ${gk('cc')} l'<b>outil Sous-titres</b> (<kbd>U</kbd>), ${gk('wave')} <b>Détecter les phrases</b> et ${gk('keyb')} <b>Synchro clavier</b>. L'outil ouvre l'atelier dans le volet <b>Outil en cours</b> : actions, style et liste de tous les sous-titres.</p>
-    <h3>Trois façons de travailler</h3>
-    <ul><li><b>Détecter puis taper</b> : MOMOmov écoute le son et crée un bloc vide pour chaque phrase parlée, déjà calé. Dans la liste, cliquez dans un bloc (la lecture se place dessus), tapez le texte, <kbd>Entrée</kbd> passe au suivant (<kbd>Maj</kbd>+<kbd>Entrée</kbd> pour aller à la ligne).</li>
+    <h3>Quatre façons de travailler</h3>
+    <ul><li><b>Transcrire la voix (Whisper)</b> : le bouton violet écoute le montage et écrit les sous-titres tout seul, calés dans le temps. Choisissez le modèle (Rapide, Équilibré ou Précis) et la langue. Whisper est un modèle de reconnaissance vocale <b>open source et gratuit</b> qui tourne entièrement sur votre ordinateur, sur la carte graphique si possible : aucun compte, aucune limite, rien n'est envoyé sur internet. Le modèle est téléchargé une seule fois (40 à 250 Mo). Relisez ensuite la liste : les noms propres et le jargon peuvent demander une correction.</li><li><b>Détecter puis taper</b> : MOMOmov écoute le son et crée un bloc vide pour chaque phrase parlée, déjà calé. Dans la liste, cliquez dans un bloc (la lecture se place dessus), tapez le texte, <kbd>Entrée</kbd> passe au suivant (<kbd>Maj</kbd>+<kbd>Entrée</kbd> pour aller à la ligne).</li>
     <li><b>Coller un texte et répartir</b> : collez le texte prononcé (script, discours…). Il est découpé en sous-titres lisibles (2 lignes de 42 caractères au plus, coupés aux ponctuations) puis réparti automatiquement sur les phrases détectées. Il reste à vérifier en lecture.</li>
     <li><b>Synchro clavier</b> : après avoir collé le texte, lancez la synchro. Le montage défile ; <b>maintenez Espace</b> pendant que chaque phrase est dite et relâchez à la fin. <kbd>Retour</kbd> revient d'une phrase, <kbd>Échap</kbd> termine.</li></ul>
     <h3>Style, import et export</h3>
@@ -4503,6 +4657,7 @@ function doAct(a) {
     case 'pane': return togglePane(v);
     case 'dvd': return openDvd();
     case 'subdetect': return subDetect();
+    case 'subwhisper': return wDialog();
     case 'subpaste': return subPasteDialog();
     case 'subsync': return subSync();
     case 'subimport': return subImport();
