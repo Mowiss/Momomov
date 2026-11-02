@@ -402,7 +402,7 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .f input[type=number],.f input[type=text],.f select,.f textarea{width:100%;background:#111827;border:1px solid var(--g700);border-radius:7px;color:var(--g200);padding:5px 8px}
 .f textarea{resize:vertical;min-height:62px;font-family:inherit;user-select:text}
 .f input:focus,.f select:focus,.f textarea:focus{outline:none;border-color:var(--brand3)}
-.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.eqp{grid-template-columns:repeat(auto-fill,minmax(70px,1fr));margin-bottom:8px}.eqp .tpl{padding:6px 3px}
 .f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .fc{display:flex;align-items:center;gap:8px}
 .fc input[type=color]{width:40px;height:28px;border:1px solid var(--g600);border-radius:7px;background:none;padding:1px;cursor:pointer;flex:none}
@@ -893,7 +893,8 @@ function act(fn, opts = {}) { begin(); const r = fn(); commit(); if (!opts.quiet
 function undo() { if (!HIST.u.length) return; HIST.r.push(JSON.stringify(P)); P = JSON.parse(HIST.u.pop()); setDirty(true); afterLoad(); toast('Annulé'); }
 function redo() { if (!HIST.r.length) return; HIST.u.push(JSON.stringify(P)); P = JSON.parse(HIST.r.pop()); setDirty(true); afterLoad(); toast('Rétabli'); }
 function updUndo() { const u = $('#btn-undo'), r = $('#btn-redo'); if (u) u.disabled = !HIST.u.length; if (r) r.disabled = !HIST.r.length; }
-function setDirty(v) { DIRTY = v; if (v) BK.pending = true; updDocName(); }
+let EDITV = 0;
+function setDirty(v) { if (v) EDITV++; DIRTY = v; if (v) BK.pending = true; updDocName(); }
 function updDocName() {
   const d = $('#docname'); if (!d || !P) return;
   d.innerHTML = `${DIRTY ? '<span class="dirty">●</span> ' : ''}${esc(P.name)}<small>${P.w}×${P.h} · ${P.fps} i/s</small>`;
@@ -989,7 +990,7 @@ document.addEventListener('click', e => {
    c.trk = { pts:[{t,u,v}] } (u,v : position normalisée dans l'image source)
    c.follow = id du clip suivi (le clip se colle au point suivi, c.x / c.y = décalage)
    ========================================================================== */
-const KFP = ['x', 'y', 'sc', 'rot', 'op'];
+const KFP = ['x', 'y', 'sc', 'rot', 'op', 'vol'];
 const smooth = p => p * p * (3 - 2 * p);
 function kfList(c, k) { return c.kf && c.kf[k] && c.kf[k].length ? c.kf[k] : null; }
 function pv(c, k, t) {
@@ -1153,7 +1154,7 @@ async function runAnalyze() {
       if (md.kind === 'image') { const c = document.createElement('canvas'); const r = md.w / md.h; c.width = 160; c.height = Math.max(1, Math.round(160 / r)); c.getContext('2d').drawImage(m.img, 0, 0, c.width, c.height); m.thumbs = [{ t: 0, c }]; }
       if (md.kind !== 'image') await genPeaks(id, md);
     } catch (e) { }
-    m.ready = true; renderBin(); TLdraw();
+    m.ready = true; EDITV++; renderBin(); TLdraw();
     if (md.kind === 'video') pxCheck(id);
   }
   ANBUSY = false;
@@ -1214,12 +1215,12 @@ function player(c) {
   el.addEventListener('seeked', reqDraw); el.addEventListener('loadeddata', reqDraw);
   $('#pool').appendChild(el);
   p = { el, u, mediaId: c.mediaId, kind: c.type, g: null, s: null };
-  if (audio()) { try { p.s = AC.createMediaElementSource(el); p.g = AC.createGain(); p.g.gain.value = 0; p.s.connect(p.g); p.g.connect(MASTER); } catch (e) { p.s = p.g = null; } }
+  if (audio()) { try { p.s = AC.createMediaElementSource(el); p.g = AC.createGain(); p.g.gain.value = 0; p.f = mkEq(AC); p.s.connect(p.f.in); p.f.out.connect(p.g); p.g.connect(MASTER); } catch (e) { p.s = p.g = null; } }
   PL.set(c.id, p); return p;
 }
 function dropPlayer(id) {
   const p = PL.get(id); if (!p) return;
-  try { p.el.pause(); if (p.s) p.s.disconnect(); if (p.g) p.g.disconnect(); } catch (e) { }
+  try { p.el.pause(); if (p.s) p.s.disconnect(); if (p.f) p.f.out.disconnect(); if (p.g) p.g.disconnect(); } catch (e) { }
   p.el.removeAttribute('src'); p.el.load(); p.el.remove(); PL.delete(id);
 }
 function dropAllPlayers() { for (const id of [...PL.keys()]) dropPlayer(id); }
@@ -1257,7 +1258,8 @@ function syncMedia(t) {
     const act = t >= s && t < e;
     const st = srcTime(c, t);
     const audible = act && !c.mute && !(tr && tr.mute) && !(tr && tr.kind === 'v' && tr.hide && false) && (c.type === 'audio' || (md && md.hasAudio !== false));
-    const g = audible ? c.vol * fadeGain(c, t) * xGain(c, t) : 0;
+    const g = audible ? pv(c, 'vol', t) * fadeGain(c, t) * xGain(c, t) * duckGain(c, t) : 0;
+    if (p.f) setEq(p.f, c.eq);
     if (p.g) p.g.gain.setTargetAtTime(g, now, 0.012); else p.el.volume = clamp(g * SET.mvol, 0, 1);
     if (act && playing) {
       if (p.el.paused) {
@@ -2689,6 +2691,154 @@ EFC.push(
 for (const e of EFC) EFMAP[e.k] = e;
 
 /* ==========================================================================
+   Son : égaliseur, baisse automatique sous les voix, normalisation,
+   nettoyage de la voix (RNNoise, calculé sur l'ordinateur)
+   ========================================================================== */
+const EQ0 = () => ({ hp: 0, lo: 0, mid: 0, hi: 0 });
+const EQP = [
+  ['neutre', 'Neutre', { hp: 0, lo: 0, mid: 0, hi: 0 }],
+  ['voix', 'Voix claire', { hp: 1, lo: -3, mid: 3, hi: 4 }],
+  ['chaude', 'Voix chaude', { hp: 1, lo: 3, mid: 0, hi: -2 }],
+  ['basses', 'Plus de basses', { hp: 0, lo: 6, mid: 0, hi: 1 }],
+  ['douce', 'Musique douce', { hp: 0, lo: 1, mid: -2, hi: -4 }],
+  ['radio', 'Radio', { hp: 1, lo: -10, mid: 6, hi: -5 }],
+  ['tel', 'Téléphone', { hp: 1, lo: -14, mid: 8, hi: -14 }]
+];
+const eqOn = c => c.eq && (c.eq.hp || c.eq.lo || c.eq.mid || c.eq.hi);
+function mkEq(ctx) {
+  const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 10; hp.Q.value = .7;
+  const lo = ctx.createBiquadFilter(); lo.type = 'lowshelf'; lo.frequency.value = 160;
+  const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1800; mid.Q.value = .8;
+  const hi = ctx.createBiquadFilter(); hi.type = 'highshelf'; hi.frequency.value = 6000;
+  hp.connect(lo); lo.connect(mid); mid.connect(hi);
+  return { in: hp, out: hi, hp, lo, mid, hi, key: '' };
+}
+function setEq(f, eq) {
+  const e = eq || EQ0(), k = `${e.hp}|${e.lo}|${e.mid}|${e.hi}`; if (f.key === k) return; f.key = k;
+  f.hp.frequency.value = e.hp ? 90 : 10; f.lo.gain.value = e.lo || 0; f.mid.gain.value = e.mid || 0; f.hi.gain.value = e.hi || 0;
+}
+
+/* ---------- Baisse automatique (ducking) ---------- */
+function voiceAt(c, t) { // y a-t-il une voix (un autre son audible) à l'instant t ?
+  let v = 0;
+  for (const o of P.clips) {
+    if (o === c || !isAV(o) || o.mute || o.duck > 0 || t < o.start || t >= cEnd(o)) continue;
+    const tr = trackOf(o); if (tr && tr.mute) continue;
+    const md = media(o.mediaId), m = M.get(o.mediaId); if (!m || !m.peaks || (o.type === 'video' && md && md.hasAudio === false)) continue;
+    if (m.floor === undefined) { const s = Float32Array.from(m.peaks).sort(); m.floor = s[Math.floor(s.length * .2)] || 0; }
+    const i = Math.floor(srcTime(o, t) * m.pps); const x = Math.max(m.peaks[i] || 0, m.peaks[i + 1] || 0, m.peaks[i - 1] || 0);
+    if (x > Math.max(.04, m.floor * 2.5) && x * pv(o, 'vol', t) > .02) v = 1;
+  }
+  return v > 0;
+}
+const DUCK = { v: null, m: new Map() };
+function voiceG(c, i) { // voix sur la grille de 0,1 s (mémorisée tant que le montage ne change pas)
+  const v = EDITV + '|' + P.clips.length; if (DUCK.v !== v) { DUCK.v = v; DUCK.m.clear(); }
+  const key = c.id + ':' + i; let r = DUCK.m.get(key); if (r === undefined) { r = voiceAt(c, i / 10); DUCK.m.set(key, r); if (DUCK.m.size > 4e5) DUCK.m.clear(); } return r;
+}
+function envG(c, i) { let e = 0; for (let k = -6; k <= 6; k++) if (voiceG(c, i + k)) { const w = 1 - Math.max(0, Math.abs(k) / 10 - .15) / .5; if (w > e) { e = w; if (e >= 1) break; } } return clamp(e, 0, 1); }
+function duckEnv(c, t) { // 0 = pas de voix, 1 = voix : montée et descente douces (≈ 0,5 s), avec anticipation
+  const g = t * 10, i = Math.floor(g), f = g - i; const a = envG(c, i); return f < 1e-6 ? a : a + (envG(c, i + 1) - a) * f;
+}
+function duckGain(c, t) { return c.duck > 0 ? 1 - c.duck / 100 * duckEnv(c, t) : 1; }
+
+/* ---------- Normaliser ---------- */
+function normalizeSel() {
+  const list = selClips().filter(c => isAV(c)); if (!list.length) { toast('Sélectionnez un clip avec du son'); return; }
+  let n = 0;
+  act(() => {
+    for (const c of list) {
+      const m = M.get(c.mediaId); if (!m || !m.peaks) continue;
+      let pk = 0; const a = Math.floor(c.in * m.pps), b = Math.ceil((c.in + c.dur * c.speed) * m.pps);
+      for (let i = a; i < b; i++) if (m.peaks[i] > pk) pk = m.peaks[i];
+      if (pk < .001) continue;
+      const v = clamp(.89 / pk, .05, 2); if (c.kf && c.kf.vol) { const r = v / pv(c, 'vol', c.start); for (const q of c.kf.vol) q.v = clamp(q.v * r, 0, 2); } else c.vol = v; n++;
+    }
+  });
+  toast(n ? `Volume ajusté sur ${n} clip${n > 1 ? 's' : ''} (crête à −1 dB)` : 'Analyse du son pas encore prête', n ? 'ok' : '');
+}
+
+/* ---------- Nettoyer la voix (RNNoise) ---------- */
+const RNV = 'https://cdn.jsdelivr.net/npm/@shiguredo/rnnoise-wasm@2025.1.5/dist/rnnoise.js';
+let RNN = null;
+async function loadRnn() { if (!RNN) RNN = import(RNV).then(m => m.Rnnoise.load()).catch(e => { RNN = null; throw e; }); return RNN; }
+async function resample48(buf) {
+  if (buf.sampleRate === 48000) return buf;
+  const oc = new OfflineAudioContext(2, Math.max(1, Math.ceil(buf.duration * 48000)), 48000);
+  const s = oc.createBufferSource(); s.buffer = buf; s.connect(oc.destination); s.start(); return oc.startRendering();
+}
+async function denoiseDialog() {
+  const c = selClips().find(x => isAV(x)); if (!c) { toast('Sélectionnez un clip avec du son'); return; }
+  const m = modal(`<div class="mh">${ic('wave', '', ' style="color:#34d399"')}Nettoyer la voix<button class="x" data-close>${ic('x')}</button></div>
+    <div class="mb"><p style="margin:0 0 10px;color:var(--g300)">Une petite intelligence artificielle (RNNoise) retire le souffle, le vent, le ronronnement des machines et le bruit de fond, en gardant la voix. Tout est calculé sur votre ordinateur.</p>
+    <p style="margin:0 0 12px;color:var(--g400);font-size:12.5px">Un nouveau son nettoyé est créé et remplace celui du clip ; l'original reste dans la médiathèque (Ctrl+Z pour revenir en arrière).</p>
+    <div class="f"><label>Force du nettoyage<b id="dnv">100 %</b></label><input type="range" id="dnk" min="30" max="100" step="5" value="100"></div></div>
+    <div class="mf"><button class="btn" data-close>Annuler</button><button class="btn pri" id="dngo">${ic('wave')}Nettoyer</button></div>`);
+  $('#dnk', m.el).oninput = e => { $('#dnv', m.el).textContent = e.target.value + ' %'; };
+  $('#dngo', m.el).onclick = () => { const k = +$('#dnk', m.el).value / 100; m.close(); denoiseClip(c, k); };
+}
+async function denoiseClip(c, k) {
+  const md = media(c.mediaId); if (!md) return;
+  const box = ffBox('Nettoyage de la voix'); let w = null;
+  try {
+    box.status('Chargement du module de nettoyage…', 2);
+    const rn = await loadRnn(), FS = rn.frameSize || 480;
+    const s0 = c.in, s1 = c.in + c.dur * c.speed, WIN = 30;
+    const st = [rn.createDenoiseState(), rn.createDenoiseState()];
+    const name = `${(md.name || 'son').replace(/\.[a-z0-9]{2,5}$/i, '')} (voix nettoyée).wav`;
+    await diskBase();
+    const fh = DISK.dir ? await DISK.dir.getFileHandle('dn_' + uid() + '.wav', { create: true }) : null;
+    const parts = []; let total = 0;
+    if (fh) { w = await fh.createWritable(); await w.write(new Uint8Array(44)); }
+    box.t0 = performance.now(); const fr = new Float32Array(FS);
+    for (let s = s0; s < s1 - 1e-6; s += WIN) {
+      if (box.cancelled) throw new Error('annulé');
+      const e = Math.min(s1, s + WIN);
+      let b = await decodeRange(c.mediaId, s, e);
+      if (!b) throw new Error('son illisible');
+      b = await resample48(b);
+      const n = Math.min(b.length, Math.round((e - s) * 48000)), L = [b.getChannelData(0), b.getChannelData(Math.min(1, b.numberOfChannels - 1))], out = new Int16Array(n * 2);
+      for (let ch = 0; ch < 2; ch++) {
+        const src = L[ch];
+        for (let i = 0; i < n; i += FS) {
+          const len = Math.min(FS, n - i); fr.fill(0); for (let j = 0; j < len; j++) fr[j] = src[i + j] * 32768;
+          st[ch].processFrame(fr);
+          for (let j = 0; j < len; j++) { const v = (fr[j] / 32768) * k + src[i + j] * (1 - k); out[(i + j) * 2 + ch] = Math.max(-32768, Math.min(32767, Math.round(v * 32767))); }
+        }
+      }
+      if (w) await w.write(out); else parts.push(out);
+      total += n;
+      box.prog((e - s0) / (s1 - s0)); box.status(`Nettoyage de la voix — ${tc(e - s0)} / ${tc(s1 - s0)}`);
+    }
+    st.forEach(x => x.destroy());
+    const hd = new DataView(new ArrayBuffer(44)), bytes = total * 4, S = (p, t) => { for (let i = 0; i < 4; i++) hd.setUint8(p + i, t.charCodeAt(i)); };
+    S(0, 'RIFF'); hd.setUint32(4, 36 + bytes, true); S(8, 'WAVE'); S(12, 'fmt '); hd.setUint32(16, 16, true); hd.setUint16(20, 1, true); hd.setUint16(22, 2, true);
+    hd.setUint32(24, 48000, true); hd.setUint32(28, 48000 * 4, true); hd.setUint16(32, 4, true); hd.setUint16(34, 16, true); S(36, 'data'); hd.setUint32(40, bytes, true);
+    let blob;
+    if (w) { await w.write({ type: 'write', position: 0, data: hd.buffer }); await w.close(); w = null; blob = new Blob([await fh.getFile()], { type: 'audio/wav' }); }
+    else blob = new Blob([hd.buffer, ...parts], { type: 'audio/wav' });
+    box.status('Ajout à la médiathèque…', 99);
+    begin();
+    const nm = await addMedia(blob, name, { kind: 'audio', onDisk: !!fh });
+    if (!nm) throw new Error('son nettoyé illisible');
+    let a = c;
+    if (c.type === 'video') {
+      const tr = findTrack('a', c.start, cEnd(c));
+      a = mkClip('audio', { track: tr.id, start: c.start, dur: c.dur, name: (c.name || 'Son') + ' (voix nettoyée)' });
+      for (const q of ['vol', 'afIn', 'afOut', 'eq', 'duck', 'kf']) if (c[q] !== undefined) a[q] = JSON.parse(JSON.stringify(c[q]));
+      if (a.kf) for (const q of KFP) if (q !== 'vol') delete a.kf[q];
+      P.clips.push(a); c.mute = true;
+    }
+    a.mediaId = nm.id; a.in = 0; a.speed = c.speed; if (c.type !== 'video') a.name = (a.name || 'Son').replace(/ \(voix nettoyée\)$/, '') + ' (voix nettoyée)';
+    resolve([a]); SEL = new Set([a.id]); commit(); refreshAll(); box.close();
+    toast('Voix nettoyée' + (c.type === 'video' ? ' : le son est maintenant sur une piste audio, sous la vidéo' : ''), 'ok', 5000);
+  } catch (e) {
+    try { if (w) await w.abort(); } catch (x) { }
+    box.close(); if (!box.cancelled) toast('Nettoyage impossible : ' + (e.message || e), 'err', 5000); else toast('Nettoyage annulé');
+  }
+}
+
+/* ==========================================================================
    Timeline (canvas) : règle, pistes, clips, glisser, rogner, lame, aimant
    ========================================================================== */
 const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: null, hover: null, W: 0, H: 0, dpr: 1 };
@@ -2830,10 +2980,15 @@ function drawTLClip(ctx, c, lay) {
     const xa = Math.max(r.x, 0), xb = Math.min(r.x + r.w, TL.W);
     for (let x = xa; x < xb; x += 2) {
       const tt = c.start + (x - r.x) / TL.z, st = c.in + (tt - c.start) * c.speed; const i = Math.floor(st * m.pps);
-      let v = m.peaks[i] || 0; v *= Math.min(2, c.vol) * fadeGain(c, tt);
+      let v = m.peaks[i] || 0; v *= Math.min(2, pv(c, 'vol', tt)) * fadeGain(c, tt) * (c.duck > 0 ? duckGain(c, tt) : 1);
       const hh = Math.max(1, v * wh * (c.type === 'audio' ? 1 : 1));
       if (c.type === 'audio') ctx.fillRect(x, wy - hh / 2, 1.4, hh); else ctx.fillRect(x, wy + 6 - hh, 1.4, hh);
     }
+  }
+  if (isAV(c) && ((c.kf && c.kf.vol) || c.duck > 0) && !(c.type === 'video' && c.mute)) { // courbe de volume
+    ctx.strokeStyle = '#fde047'; ctx.lineWidth = 1.5; ctx.beginPath(); const xa = Math.max(r.x, 0), xb = Math.min(r.x + r.w, TL.W);
+    for (let x = xa; x <= xb; x += 3) { const tt = c.start + (x - r.x) / TL.z, g = pv(c, 'vol', tt) * duckGain(c, tt), y = r.y + r.h - 3 - clamp(g / 2, 0, 1) * (r.h - HH - 6); if (x === xa) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.stroke();
   }
   // transitions & fondus
   const tri = (x, w, left) => { ctx.beginPath(); if (left) { ctx.moveTo(x, r.y + r.h); ctx.lineTo(x, cy); ctx.lineTo(x + w, cy); } else { ctx.moveTo(x + w, r.y + r.h); ctx.lineTo(x + w, cy); ctx.lineTo(x, cy); } ctx.closePath(); ctx.fill(); };
@@ -3631,8 +3786,14 @@ function refreshInsp() {
   if (av && !(md && md.hasAudio === false && c.type === 'video')) {
     h += sec('audio', 'Son', 'vol', '#10b981', `
       ${tog('mute', 'Couper le son de ce clip', c.mute)}
-      ${sl('vol', 'Volume', 0, 200, 1, c.vol, { mul: 100, fmt: pct })}
+      ${sl('vol', 'Volume', 0, 200, 1, pv(c, 'vol', T), { mul: 100, fmt: pct, kf: c })}
       <div class="f2">${sl('afIn', 'Fondu entrant', 0, Math.min(10, +c.dur.toFixed(2)), 0.1, c.afIn, { u: ' s' })}${sl('afOut', 'Fondu sortant', 0, Math.min(10, +c.dur.toFixed(2)), 0.1, c.afOut, { u: ' s' })}</div>
+      ${sl('duck', 'Baisser sous les voix', 0, 95, 5, c.duck || 0, { u: ' %' })}
+      <div class="isub">Égaliseur</div>
+      <div class="tpls eqp">${EQP.map(([k, n, e]) => { const q = c.eq || EQ0(); const on = ['hp', 'lo', 'mid', 'hi'].every(x => (q[x] || 0) === e[x]); return `<button class="tpl${on ? ' on' : ''}" data-do="eqp:${k}">${n}</button>`; }).join('')}</div>
+      <div>${sl('eq.lo', 'Graves', -15, 15, 1, (c.eq || EQ0()).lo, { u: ' dB' })}${sl('eq.mid', 'Médiums', -15, 15, 1, (c.eq || EQ0()).mid, { u: ' dB' })}${sl('eq.hi', 'Aigus', -15, 15, 1, (c.eq || EQ0()).hi, { u: ' dB' })}</div>
+      ${tog('eq.hp', 'Couper les très basses fréquences (vent, ronflement)', !!(c.eq && c.eq.hp))}
+      <div class="ibtns"><button class="ibtn" data-act="normalize">${ic('vol')}Normaliser</button><button class="ibtn" data-act="denoise">${ic('wave')}Nettoyer la voix</button></div>
       ${c.type === 'video' ? `<div class="ibtns"><button class="ibtn wide" data-act="detach">${ic('detach')}Détacher le son sur une piste audio</button></div>` : ''}`);
   }
   h += `<div class="ibtns" style="margin-top:2px"><button class="ibtn" data-act="dup">${ic('dup')}Dupliquer</button><button class="ibtn" data-act="del" style="color:#fca5a5">${ic('trash')}Supprimer</button></div>`;
@@ -3701,14 +3862,14 @@ function inspInit(box) {
   box.addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (b) { SET.titleTpl = b.dataset.tpl; saveSet(); renderToolPane(); } });
   const read = el => { if (el.type === 'checkbox') return el.checked; if (el.type === 'range' || el.type === 'number') return parseFloat(el.value) / (+el.dataset.mul || 1); return el.value; };
   const setPath = (o, path, v) => { const ks = path.split('.'); let x = o; for (let i = 0; i < ks.length - 1; i++) x = x[ks[i]]; x[ks[ks.length - 1]] = v; };
-  const applies = (c, k) => { const r = k.split('.')[0]; if (r === 'txt') return c.type === 'text'; if (r === 'fx') return c.type === 'video' || c.type === 'image'; if (['vol', 'mute', 'afIn', 'afOut'].includes(r)) return isAV(c); if (['x', 'y', 'sc', 'rot', 'op', 'trIn', 'trOut'].includes(r)) return isVisual(c); if (r === 'color') return c.type === 'color'; return true; };
+  const applies = (c, k) => { const r = k.split('.')[0]; if (r === 'txt') return c.type === 'text'; if (r === 'fx') return c.type === 'video' || c.type === 'image'; if (['vol', 'mute', 'afIn', 'afOut', 'duck', 'eq'].includes(r)) return isAV(c); if (['x', 'y', 'sc', 'rot', 'op', 'trIn', 'trOut'].includes(r)) return isVisual(c); if (r === 'color') return c.type === 'color'; return true; };
   const live = (el, commitNow) => {
     if (el.dataset.pk) { begin(); P[el.dataset.pk] = el.value; reqDraw(); if (commitNow) { commit(); updDocName(); } return; }
     const k = el.dataset.k; if (!k) return;
     const v = read(el); begin();
     if (k === 'start') { if (!commitNow) return; const t = parseTC(el.value); if (t === null) { el.value = tc(selClips()[0].start); return; } const list = selClips(); const d = fsnap(Math.max(0, t)) - list[0].start; for (const c of list) c.start = Math.max(0, c.start + d); resolve(list); }
     else if (k === 'dur') { if (!commitNow) return; for (const c of selClips()) { let dv = Math.max(1 / P.fps, fsnap(+v || c.dur)); if (isAV(c)) dv = Math.min(dv, srcLen(c)); c.dur = dv; } resolve(selClips()); }
-    else for (const c of selClips()) if (applies(c, k)) { if (KFP.includes(k)) setPV(c, k, v, T); else setPath(c, k, v); }
+    else for (const c of selClips()) if (applies(c, k)) { if (KFP.includes(k)) setPV(c, k, v, T); else { if (k.startsWith('eq.')) c.eq = Object.assign(EQ0(), c.eq || {}); setPath(c, k, k === 'eq.hp' ? (v ? 1 : 0) : v); } }
     const lab = box.querySelector(`[data-v="${k}"]`);
     if (lab && el.type === 'range') { const mul = +el.dataset.mul || 1, x = parseFloat(el.value); lab.textContent = mul === 100 || ['fx.bri', 'fx.con', 'fx.sat', 'fx.gray', 'fx.sepia', 'fx.vig'].includes(k) ? Math.round(x) + ' %' : (Math.round(x * 100) / 100) + (el.dataset.u || ''); }
     if (k === 'txt.font') { ensureFont(v); el.style.fontFamily = `'${v}'`; }
@@ -3723,6 +3884,7 @@ function inspInit(box) {
     const b = e.target.closest('[data-do]'); if (!b) return;
     const [k, v] = b.dataset.do.split(/:(.*)/s); const list = selClips();
     if (k === 'look') return applyLook(v);
+    if (k === 'eqp') { const pr = EQP.find(x => x[0] === v); if (pr) { act(() => { for (const c of list) if (isAV(c)) c.eq = Object.assign({}, pr[2]); }); refreshInsp(); } return; }
     if (k === 'speed') return doSpeed(+v);
     act(() => {
       for (const c of list) {
@@ -3765,7 +3927,7 @@ function afterLoad() {
 }
 
 /* bouton ◆ et mise à jour des curseurs animés quand la tête de lecture bouge */
-document.addEventListener('click', e => { const b = e.target.closest('[data-kf]'); if (!b || !P) return; const c = selClips()[0]; if (!c) return; act(() => { for (const x of selClips()) if (isVisual(x)) toggleKf(x, b.dataset.kf, T); }); });
+document.addEventListener('click', e => { const b = e.target.closest('[data-kf]'); if (!b || !P) return; const c = selClips()[0]; if (!c) return; act(() => { for (const x of selClips()) if (b.dataset.kf === 'vol' ? isAV(x) : isVisual(x)) toggleKf(x, b.dataset.kf, T); }); });
 function updKfUI() {
   const c = selClips()[0]; if (!c || !c.kf || !Object.keys(c.kf).length) return;
   const box = $('#inspb'); if (!box || box.contains(document.activeElement) && document.activeElement.type === 'range') return;
@@ -4263,9 +4425,9 @@ async function renderMix(a, b, sr = 48000) {
       if (!buf || off >= buf.duration) continue;
     }
     const src = oac.createBufferSource(); src.buffer = buf; src.playbackRate.value = c.speed;
-    const g = oac.createGain(); src.connect(g); g.connect(oac.destination);
+    const g = oac.createGain(); if (eqOn(c)) { const f = mkEq(oac); setEq(f, c.eq); src.connect(f.in); f.out.connect(g); } else src.connect(g); g.connect(oac.destination);
     const n = Math.max(2, Math.ceil(dur * 60)), curve = new Float32Array(n);
-    for (let i = 0; i < n; i++) { const tt = st + dur * i / (n - 1); curve[i] = c.vol * fadeGain(c, tt) * xGain(c, tt); }
+    for (let i = 0; i < n; i++) { const tt = st + dur * i / (n - 1); curve[i] = pv(c, 'vol', tt) * fadeGain(c, tt) * xGain(c, tt) * duckGain(c, tt); }
     g.gain.setValueAtTime(curve[0], when); g.gain.setValueCurveAtTime(curve, when, Math.max(.002, dur));
     src.start(when, off, dur * c.speed);
   }
@@ -4987,8 +5149,17 @@ const GUIDE = [
     <p class="lead">Musique, ambiance, voix : tous les sons du montage se mélangent à l'export.</p>
     <h3>Régler un clip</h3>
     <ul><li>Le bloc <b>Son</b> règle le <b>volume</b> (jusqu'à 200 %), coupe le son ou ajoute des <b>fondus</b> d'entrée et de sortie. La ligne jaune dans la timeline montre l'enveloppe du volume.</li>
+    <li><b>Courbe de volume</b> : le petit losange ◆ devant Volume pose des images clés, comme pour le cadre. Placez la tête de lecture, cliquez sur ◆, avancez, changez le volume : le son monte ou descend en douceur entre les deux. La courbe jaune apparaît sur le clip.</li>
+    <li><b>Normaliser</b> monte le volume du clip au maximum sans saturer (crête à −1 dB) : pratique pour une vidéo enregistrée trop bas.</li>
     <li>${gk('detach')} <b>Détacher le son</b> place le son d'une vidéo sur sa propre piste audio. Vous pouvez alors le couper, le décaler ou le garder alors que l'image change.</li>
     <li>La forme d'onde verte vous aide à repérer les temps forts et les silences.</li></ul>
+    <h3>Musique sous les voix</h3>
+    <p>Sur le clip de musique, réglez <b>Baisser sous les voix</b> (80 % par exemple) : la musique baisse toute seule dès qu'on parle dans un autre clip (vidéo, voix off), puis remonte dans les silences. La courbe jaune sur la musique montre les baisses.</p>
+    <h3>Égaliseur</h3>
+    <p>Des réglages tout prêts (<b>Voix claire</b>, <b>Voix chaude</b>, <b>Plus de basses</b>, <b>Musique douce</b>, <b>Radio</b>, <b>Téléphone</b>) ou les curseurs <b>Graves</b>, <b>Médiums</b> et <b>Aigus</b>. « Couper les très basses fréquences » retire le grondement du vent et des moteurs.</p>
+    <h3>Nettoyer la voix</h3>
+    <p>${gk('wave')} <b>Nettoyer la voix</b> retire le souffle, le vent, le bruit des machines ou de la route grâce à une petite intelligence artificielle (RNNoise) qui tourne sur votre ordinateur. Choisissez la force, puis un nouveau son nettoyé remplace celui du clip (pour une vidéo, il est posé sur une piste audio juste en dessous). L'original reste dans la médiathèque et <kbd>Ctrl</kbd>+<kbd>Z</kbd> annule.</p>
+    <div class="tip"><b>Recette d'une interview de chantier :</b> Nettoyer la voix, puis Normaliser, puis l'égaliseur « Voix claire », et la musique à 80 % « sous les voix ».</div>
     <h3>Voix off</h3>
     <p>${gk('mic')} enregistre votre voix avec le micro de l'ordinateur, à partir de la tête de lecture. Le montage peut défiler pendant que vous parlez (son coupé pour éviter l'écho). La voix est ensuite posée sur une piste audio libre.</p>
     <p>Le curseur de volume sous l'aperçu ne règle que ce que vous entendez, pas le fichier exporté.</p>`],
@@ -5403,6 +5574,8 @@ function doAct(a) {
     case 'tool': return setTool(v);
     case 'pane': return togglePane(v);
     case 'trkclear': return clearTrack();
+    case 'normalize': return normalizeSel();
+    case 'denoise': return denoiseDialog();
     case 'trkgo': { const c = trkTarget(); if (!c) return; const q = trackPoint(c, T); const X = clipXform(c, T, trState(c, T)); if (q) { const uv = projToUV(X, q.x, q.y); trackFrom(c, uv.u, uv.v); } return; }
     case 'trktext': return attachText();
     case 'trkfx': return attachFx(v);
