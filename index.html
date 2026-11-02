@@ -303,7 +303,8 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .derr{color:#f87171;font-size:12px}
 .douts{display:flex;flex-direction:column;gap:5px;margin-top:4px}
 .dout{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--g400)}.dout b{color:#fff}
-.dout .ibtn{padding:4px 9px}.dout .ibtn:disabled{opacity:.6;cursor:default;border-color:#065f46;color:#34d399}
+.dout .ibtn{padding:5px 10px}
+.dout .ibtn.dbin:not(:disabled){background:var(--brand2);border-color:var(--brand3);color:#fff}.dout .ibtn:disabled{opacity:.6;cursor:default;border-color:#065f46;color:#34d399}
 .dvdfoot{align-items:center}
 @media (max-width:900px){.dvdset{display:none}.dvdrow{grid-template-columns:24px 1fr}.dthumb,.dinfo,.dact{grid-column:2}}
 /* Catalogue des transitions */
@@ -3768,7 +3769,7 @@ const GUIDE = [
     <ul><li>Cochez les titres voulus, puis <b>Convertir en MP4</b>. Les titres passent l'un après l'autre ; vous pouvez fermer l'atelier et continuer à monter pendant ce temps (un point rouge sur le bouton DVD signale une conversion en cours).</li>
     <li>À gauche, choisissez la qualité, le son et le <b>désentrelacement</b> (supprime les lignes en peigne des caméscopes).</li>
     <li><b>Un fichier par chapitre</b> découpe chaque titre selon les chapitres du DVD.</li>
-    <li>Une fois prêts, les MP4 vont dans la <b>médiathèque</b> (ou avec le bouton <b>Ajouter au montage</b>) et peuvent aussi être téléchargés.</li></ul>
+    <li>Quand un MP4 est prêt, deux boutons apparaissent sous le titre : <b>Télécharger</b> pour l'enregistrer sur votre ordinateur, et <b>Envoyer dans la médiathèque</b> pour l'utiliser dans le montage.</li></ul>
     <div class="tip"><b>Bon à savoir :</b> comptez de 0,5 à 2 fois la durée du film selon l'ordinateur et la qualité. Au-delà d'environ 1 h 30 par titre, la mémoire peut manquer : activez alors « Un fichier par chapitre ». Les DVD du commerce protégés contre la copie ne sont pas pris en charge.</div>`],
   ['clavier', 'keyb', 'Raccourcis', `
     <p class="lead">Les raccourcis qui font gagner le plus de temps.</p>
@@ -3932,9 +3933,7 @@ function dvdConvert(t) {
         t.outputs.forEach(o => URL.revokeObjectURL(o.url));
         t.outputs = mp4.map(o => { const blob = new Blob([o.data.buffer], { type: 'video/mp4' }); return { name: o.name, size: blob.size, blob, url: URL.createObjectURL(blob), inBin: false }; });
         t.progTxt = 'Terminé en ' + (fmtEta((performance.now() - t.t0) / 1000) || '< 1 min').replace('moins d\'1 min', '< 1 min');
-        if (DVDSET.auto) t.outputs.forEach((o, i) => setTimeout(() => download(o.blob, o.name), i * 600));
-        if (DVDSET.toBin) for (const o of t.outputs) await dvdToBin(t, o, true);
-        toast(`Titre ${t.vts} du DVD converti${DVDSET.toBin ? ' et ajouté à la médiathèque' : ''}`, 'ok', 4000);
+        toast(`Titre ${t.vts} du DVD prêt : téléchargez-le ou envoyez-le dans la médiathèque`, 'ok', 5000);
       } else {
         t.status = 'error';
         const why = r.error || tail.filter(l => /error|invalid|failed|abort|memory/i.test(l)).slice(-2).join(' ') || 'code ' + r.ret;
@@ -4003,8 +4002,6 @@ function openDvd() {
         <div class="f"><label>Qualité du son</label><select id="dvdabr">${['128', '160', '192', '256'].map(v => `<option value="${v}"${v === DVDSET.abr ? ' selected' : ''}>${v} kb/s</option>`).join('')}</select></div>
         ${tog('dvd:deint', 'Supprimer l\'entrelacement', DVDSET.deint)}
         ${tog('dvd:split', 'Un fichier par chapitre', DVDSET.split)}
-        ${tog('dvd:toBin', 'Ajouter à la médiathèque', DVDSET.toBin)}
-        ${tog('dvd:auto', 'Télécharger chaque MP4', DVDSET.auto)}
         ${tog('dvd:hideShort', 'Masquer les titres de moins de 5 s', DVDSET.hideShort)}
       </aside>
       <section class="dvdmain" id="dvdmain"></section>
@@ -4035,7 +4032,7 @@ function dvdRender() {
     box.innerHTML = `<div class="dvdempty">
       <svg viewBox="0 0 92 92" class="dvddisc"><circle cx="46" cy="46" r="44" fill="#2b3544"/><circle cx="46" cy="46" r="32" fill="none" stroke="#9aa1ff" stroke-opacity=".18"/><circle cx="46" cy="46" r="22" fill="none" stroke="#9aa1ff" stroke-opacity=".18"/><circle cx="46" cy="46" r="12" fill="#1f2937" stroke="#4f57c9" stroke-width="2"/><circle cx="46" cy="46" r="4" fill="#111827"/></svg>
       <h3>Glissez ici le dossier de votre DVD</h3>
-      <p>Copiez d'abord le DVD sur votre disque, puis déposez le dossier <code>VIDEO_TS</code> (ou le dossier qui le contient). Les vidéos sont converties en MP4 sur votre ordinateur, puis rangées dans la médiathèque.</p>
+      <p>Copiez d'abord le DVD sur votre disque, puis déposez le dossier <code>VIDEO_TS</code> (ou le dossier qui le contient). Les vidéos sont converties en MP4 sur votre ordinateur, puis vous choisissez de les télécharger ou de les envoyer dans la médiathèque.</p>
       <div class="dvdtree"><b>VIDEO_TS/</b><br>&nbsp;├ VIDEO_TS.IFO &nbsp;<span>menu principal</span><br>&nbsp;├ VTS_01_0.VOB &nbsp;<span>menu, ignoré</span><br>&nbsp;├ VTS_01_0.IFO &nbsp;<span>durées et chapitres</span><br>&nbsp;├ <i>VTS_01_1.VOB</i> &nbsp;<span>vidéo, 1 Go max</span><br>&nbsp;└ <i>VTS_01_2.VOB</i> &nbsp;<span>suite du titre 1</span></div>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn pri" id="dvddir">${ic('folder')}Choisir le dossier</button><button class="btn" id="dvdfiles">${ic('film')}Choisir des fichiers VOB / IFO</button></div>
     </div>`;
@@ -4071,7 +4068,7 @@ function dvdRow(t) {
       ${t.status === 'idle' && nCh > 1 ? `<div class="dchaps">${t.chapters.slice(0, 24).map((c, i) => `<span>${String(i + 1).padStart(2, '0')} ${fmtDur(c)}</span>`).join('')}${nCh > 24 ? `<span>+${nCh - 24}</span>` : ''}</div>` : ''}
       ${busy || t.status === 'done' ? `<div class="dprog"><div class="prog"><i style="width:${(t.progress * 100).toFixed(1)}%"></i></div><div class="dpt">${t.progTxt || ''}</div></div>` : ''}
       ${t.status === 'error' ? `<div class="derr">${esc(t.error)}</div>` : ''}
-      ${t.outputs.length ? `<div class="douts">${t.outputs.map((o, i) => `<span class="dout"><b>${esc(o.name.replace(/^.*_(Titre\d+(?:_Chap\d+)?)\.mp4$/, '$1'))}</b> · ${fmtSize(o.size)}<button class="ibtn" data-bin="${i}"${o.inBin ? ' disabled' : ''}>${ic(o.inBin ? 'check' : 'plus')}${o.inBin ? 'Dans la médiathèque' : 'Ajouter au montage'}</button><button class="ibtn" data-dl="${i}" title="Télécharger le MP4">${ic('install')}</button></span>`).join('')}</div>` : ''}
+      ${t.outputs.length ? `<div class="douts">${t.outputs.map((o, i) => `<span class="dout"><b>${esc(o.name.replace(/^.*_(Titre\d+(?:_Chap\d+)?)\.mp4$/, '$1'))}</b> · ${fmtSize(o.size)}<button class="ibtn" data-dl="${i}">${ic('install')}Télécharger</button><button class="ibtn dbin" data-bin="${i}"${o.inBin ? ' disabled' : ''}>${ic(o.inBin ? 'check' : 'film')}${o.inBin ? 'Dans la médiathèque' : 'Envoyer dans la médiathèque'}</button></span>`).join('')}</div>` : ''}
     </div>
     <div class="dact">${busy ? `<button class="btn" data-a="cancel">${ic('x')}Annuler</button>` : `<button class="btn" data-a="go"${DVD.engine === 'error' ? ' disabled' : ''}>${ic(t.status === 'done' || t.status === 'error' ? 'reset' : 'play')}${t.status === 'done' || t.status === 'error' ? 'Relancer' : 'Convertir'}</button>`}</div>`;
   n.querySelector('input').onchange = e => { t.selected = e.target.checked; dvdRow(t); dvdDock(); };
