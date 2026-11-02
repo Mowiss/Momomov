@@ -1198,7 +1198,7 @@ function playEnd() { const d = projDur(); return (P.io && SET.loop) ? Math.min(P
 let lastTL = 0;
 function frameLoop(now) {
   requestAnimationFrame(frameLoop);
-  if (!P) return;
+  if (!P || (EXP && EXP.offline)) return;
   if (PLAY.on) {
     T = PLAY.t0 + (performance.now() - PLAY.p0) / 1000;
     const end = EXP ? EXP.end : playEnd();
@@ -2987,6 +2987,7 @@ async function startExport(o) {
   pause();
   const a = o.range === 'io' && P.io ? P.io.a : 0, b = o.range === 'io' && P.io ? P.io.b : projDur();
   if (b - a < 0.1) { toast('La zone à exporter est trop courte'); return; }
+  if (SET.fastExp !== false && fastCapable()) { const r = await fastExport(o, OUTMAP[o.out] || OUTMAP.mp4); if (r !== 'fallback') return; }
   if (!audio()) { toast('Audio indisponible dans ce navigateur', 'err'); return; }
   try { await AC.resume(); } catch (e) { }
   const { w, h } = exportDims(o.res);
@@ -3214,6 +3215,177 @@ function nativeOut(f) {
 }
 
 /* ==========================================================================
+   Export accéléré (WebCodecs) : rendu image par image + encodeur matériel
+   ========================================================================== */
+const MUXV = { mp4: 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js', webm: 'https://cdn.jsdelivr.net/npm/webm-muxer@5.1.4/build/webm-muxer.js' };
+const fastCapable = () => !!(window.VideoEncoder && window.AudioEncoder && window.VideoFrame && window.AudioData && window.OfflineAudioContext);
+
+/* ---------- Mixage du son hors temps réel ---------- */
+async function renderMix(a, b, sr = 48000) {
+  const len = Math.max(1, Math.ceil((b - a) * sr));
+  const oac = new OfflineAudioContext(2, len, sr);
+  const bufs = new Map();
+  for (const c of P.clips) {
+    if (!isAV(c)) continue;
+    const md = media(c.mediaId), m = M.get(c.mediaId), tr = trackOf(c);
+    if (!md || !m || c.mute || (tr && tr.mute) || (c.type === 'video' && md.hasAudio === false)) continue;
+    const [s0, e0] = extRange(c);
+    const st = Math.max(s0, a, c.start - c.in / c.speed), en = Math.min(e0, b);
+    if (en - st <= 1e-3) continue;
+    let buf = bufs.get(c.mediaId);
+    if (buf === undefined) { try { buf = await oac.decodeAudioData(await m.blob.arrayBuffer()); } catch (e) { buf = null; } bufs.set(c.mediaId, buf); }
+    if (!buf) continue;
+    const src = oac.createBufferSource(); src.buffer = buf; src.playbackRate.value = c.speed;
+    const g = oac.createGain(); src.connect(g); g.connect(oac.destination);
+    const off = c.in + (st - c.start) * c.speed, when = st - a, dur = en - st;
+    if (off >= buf.duration) continue;
+    const n = Math.max(2, Math.ceil(dur * 60)), curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) { const tt = st + dur * i / (n - 1); curve[i] = c.vol * fadeGain(c, tt) * xGain(c, tt); }
+    g.gain.setValueAtTime(curve[0], when); g.gain.setValueCurveAtTime(curve, when, Math.max(.002, dur));
+    src.start(when, off, dur * c.speed);
+  }
+  return oac.startRendering();
+}
+function wavBlob(ab) {
+  const ch = ab.numberOfChannels, n = ab.length, sr = ab.sampleRate, bytes = n * ch * 2;
+  const buf = new ArrayBuffer(44 + bytes), v = new DataView(buf); let p = 0;
+  const s = t => { for (let i = 0; i < t.length; i++) v.setUint8(p++, t.charCodeAt(i)); }, u32 = x => { v.setUint32(p, x, true); p += 4; }, u16 = x => { v.setUint16(p, x, true); p += 2; };
+  s('RIFF'); u32(36 + bytes); s('WAVE'); s('fmt '); u32(16); u16(1); u16(ch); u32(sr); u32(sr * ch * 2); u16(ch * 2); u16(16); s('data'); u32(bytes);
+  const d = []; for (let c = 0; c < ch; c++) d.push(ab.getChannelData(c));
+  for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { const x = Math.max(-1, Math.min(1, d[c][i])); v.setInt16(p, x < 0 ? x * 32768 : x * 32767, true); p += 2; }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+/* ---------- Choix des codecs ---------- */
+async function pickVideoCfg(kind, w, h, fps, bitrate) {
+  const L = {
+    avc: ['avc1.640034', 'avc1.640033', 'avc1.64002a', 'avc1.640028', 'avc1.4d0034', 'avc1.4d0028', 'avc1.42e034', 'avc1.42001f'],
+    hevc: ['hvc1.1.6.L156.B0', 'hvc1.1.6.L153.B0', 'hvc1.1.6.L150.B0', 'hvc1.1.6.L123.B0', 'hev1.1.6.L153.B0'],
+    vp9: ['vp09.00.51.08', 'vp09.00.41.08', 'vp09.00.40.08', 'vp09.00.31.08']
+  }[kind];
+  for (const hw of ['prefer-hardware', 'no-preference']) for (const codec of L) {
+    const cfg = { codec, width: w, height: h, bitrate, framerate: fps, hardwareAcceleration: hw, latencyMode: 'quality', bitrateMode: 'variable' };
+    if (kind === 'avc') cfg.avc = { format: 'avc' };
+    if (kind === 'hevc') cfg.hevc = { format: 'hevc' };
+    try { const r = await VideoEncoder.isConfigSupported(cfg); if (r.supported) return { cfg: r.config || cfg, hw: hw === 'prefer-hardware' }; } catch (e) { }
+  }
+  return null;
+}
+async function pickAudioCfg(codec, sr, br) {
+  const cfg = { codec, sampleRate: sr, numberOfChannels: 2, bitrate: br };
+  try { const r = await AudioEncoder.isConfigSupported(cfg); return r.supported ? cfg : null; } catch (e) { return null; }
+}
+
+/* ---------- Export accéléré ---------- */
+async function fastExport(o, OF) {
+  const a = o.range === 'io' && P.io ? P.io.a : 0, b = o.range === 'io' && P.io ? P.io.b : projDur();
+  const fps = P.fps, N = Math.max(1, Math.round((b - a) * fps)), sr = 48000, Q = QUAL[o.q] || QUAL.high;
+  const box = ffBox(`Export ${OF.n}`);
+  const t0 = performance.now();
+  try {
+    box.status('Mixage du son…', 2);
+    const mix = await renderMix(a, b, sr);
+    if (box.cancelled) return;
+    /* son seul */
+    if (OF.a) {
+      let out = wavBlob(mix);
+      if (OF.k !== 'wav') { box.t0 = performance.now(); out = await ffRun(out, 'wav', OF.ext, OF.args(Q), p => box.prog(p), (s, p) => box.status(s, p)); }
+      box.close(); download(out, safeName(P.name) + '.' + OF.ext);
+      toast(`Export terminé en ${fmtDur((performance.now() - t0) / 1000)} : ${safeName(P.name)}.${OF.ext} (${(out.size / 1048576).toFixed(1)} Mo)`, 'ok', 6000); return;
+    }
+    /* vidéo */
+    const { w, h } = exportDims(o.res);
+    const vkind = OF.k === 'webm' ? 'vp9' : OF.k === 'mp4h' ? 'hevc' : 'avc';
+    const bitrate = Math.round(w * h * fps * ({ std: 0.07, high: 0.12, max: 0.2 }[o.q] || 0.12) * (vkind === 'avc' ? 1 : .7));
+    let vc = await pickVideoCfg(vkind, w, h, fps, bitrate), vk = vkind;
+    if (!vc && vkind !== 'avc') { vc = await pickVideoCfg('avc', w, h, fps, bitrate); vk = 'avc'; }
+    if (!vc) throw new Error('nocodec');
+    const container = vk === 'vp9' ? 'webm' : 'mp4';
+    let ac = container === 'webm' ? await pickAudioCfg('opus', sr, 192000) : (await pickAudioCfg('mp4a.40.2', sr, parseInt(Q.ab) * 1000) || await pickAudioCfg('opus', sr, 192000));
+    const acodec = ac ? (ac.codec === 'opus' ? 'opus' : 'aac') : null;
+    box.status('Chargement de l\'encodeur…', 4);
+    if (container === 'mp4' && !window.Mp4Muxer) await loadScript(MUXV.mp4);
+    if (container === 'webm' && !window.WebMMuxer) await loadScript(MUXV.webm);
+    const muxer = container === 'mp4'
+      ? new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: vk, width: w, height: h, frameRate: fps }, audio: ac ? { codec: acodec, numberOfChannels: 2, sampleRate: sr } : undefined, fastStart: 'in-memory', firstTimestampBehavior: 'offset' })
+      : new WebMMuxer.Muxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: 'V_VP9', width: w, height: h, frameRate: fps }, audio: ac ? { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: sr } : undefined, firstTimestampBehavior: 'offset' });
+    let encErr = null;
+    const venc = new VideoEncoder({ output: (ch, meta) => muxer.addVideoChunk(ch, meta), error: e => { encErr = e; } });
+    venc.configure(vc.cfg);
+    let aenc = null;
+    if (ac) {
+      aenc = new AudioEncoder({ output: (ch, meta) => muxer.addAudioChunk(ch, meta), error: e => { encErr = e; } });
+      aenc.configure(ac);
+      const CH = 4800, L0 = mix.getChannelData(0), L1 = mix.getChannelData(1);
+      for (let i = 0; i < mix.length; i += CH) {
+        const n = Math.min(CH, mix.length - i), d = new Float32Array(n * 2); d.set(L0.subarray(i, i + n), 0); d.set(L1.subarray(i, i + n), n);
+        const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(i / sr * 1e6), data: d });
+        aenc.encode(ad); ad.close();
+      }
+    }
+    /* rendu image par image */
+    pause(); EXP = { end: b, offline: true };
+    const ec = document.createElement('canvas'); ec.width = w; ec.height = h; const ex = ec.getContext('2d');
+    const gop = Math.round(fps * 2); let last = 0;
+    box.status(`Rendu des images${vc.hw ? ' (accélération matérielle)' : ''}…`, 5);
+    box.t0 = performance.now();
+    for (let i = 0; i < N; i++) {
+      if (box.cancelled) break; if (encErr) throw encErr;
+      const t = a + i / fps;
+      await prepFrame(t);
+      T = t; drawFrame(CX, t);
+      ex.drawImage(CV(), 0, 0, w, h);
+      const vf = new VideoFrame(ec, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+      venc.encode(vf, { keyFrame: i % gop === 0 }); vf.close();
+      while (venc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 2));
+      const now = performance.now();
+      if (now - last > 150) { last = now; const el = (now - box.t0) / 1000, sp = (i + 1) / fps / el; box.prog((i + 1) / N); box.status(`Rendu des images${vc.hw ? ' (accélération matérielle)' : ''} — ${sp >= 1 ? '×' + sp.toFixed(1) + ' plus vite que le temps réel' : Math.round((i + 1) / el) + ' images/s'}`); }
+    }
+    EXP = null;
+    if (box.cancelled) { try { venc.close(); aenc && aenc.close(); } catch (e) { } toast('Export annulé'); reqDraw(); return; }
+    box.status('Finalisation…', 99);
+    await venc.flush(); if (aenc) await aenc.flush(); if (encErr) throw encErr;
+    muxer.finalize(); venc.close(); if (aenc) aenc.close();
+    let out = new Blob([muxer.target.buffer], { type: container === 'mp4' ? 'video/mp4' : 'video/webm' });
+    /* conversion éventuelle */
+    const direct = (OF.k === 'mp4' && vk === 'avc' && acodec !== 'opus') || (OF.k === 'mp4h' && vk === 'hevc' && acodec !== 'opus') || OF.k === 'webm';
+    if (!direct) {
+      let args;
+      if ((OF.k === 'mp4' && vk === 'avc') || (OF.k === 'mp4h' && vk === 'hevc') || (OF.k === 'mov' && vk === 'avc') || (OF.k === 'mkv' && vk === 'avc'))
+        args = ['-c:v', 'copy', '-c:a', acodec === 'aac' ? 'copy' : 'aac', '-b:a', Q.ab, ...(OF.ext === 'mp4' || OF.ext === 'mov' ? ['-movflags', '+faststart'] : [])];
+      else args = OF.args(Q);
+      if (!ac) args = args.filter((x, i, l) => !(x === '-c:a' || l[i - 1] === '-c:a'));
+      box.t0 = performance.now(); box.status(`Conversion en ${OF.n}…`, 0);
+      out = await ffRun(out, container, OF.ext, args, p => box.prog(p), (s, p) => box.status(s, p));
+    }
+    box.close(); reqDraw();
+    download(out, safeName(P.name) + '.' + OF.ext);
+    toast(`Export terminé en ${fmtDur((performance.now() - t0) / 1000)} : ${safeName(P.name)}.${OF.ext} (${(out.size / 1048576).toFixed(1)} Mo)`, 'ok', 6000);
+  } catch (e) {
+    EXP = null; box.close(); reqDraw();
+    if (box.cancelled) { toast('Export annulé'); return; }
+    if (e && e.message === 'nocodec') return 'fallback';
+    toast('Export accéléré impossible : ' + (e && e.message || e) + ' — passage à l\'export classique', 'err', 6000);
+    return 'fallback';
+  }
+}
+/* place chaque vidéo exactement sur l'image voulue */
+async function prepFrame(t) {
+  const need = [];
+  for (const c of P.clips) {
+    if (c.type !== 'video') continue;
+    const tr = trackOf(c); if (tr && tr.hide) continue;
+    const [s0, e0] = extRange(c); if (!(t >= s0 - EPS && t < e0)) continue;
+    const p = player(c); if (!p) continue;
+    if (!p.el.paused) p.el.pause(); if (p.g) p.g.gain.value = 0;
+    const st = srcTime(c, t);
+    if (p.el.readyState < 2 || Math.abs(p.el.currentTime - st) > 0.25 / P.fps) need.push(seekWait(p.el, st));
+  }
+  if (need.length) await Promise.all(need);
+  if (Math.round(t * P.fps) % 60 === 0) for (const [id] of PL) { const c = clipById(id); if (!c || cEnd(c) < t - 3 || c.start > t + 10) dropPlayer(id); }
+}
+
+/* ==========================================================================
    Fenêtres : base, confirmation, démarrage, format, export, paramètres, guide
    ========================================================================== */
 const MODALS = [];
@@ -3336,8 +3508,9 @@ function exportDialog(audioOnly) {
     st.out = $('#exfmt', m.el).value; const f = OUTMAP[st.out], nat = !!nativeOut(f);
     $('#exvid', m.el).style.display = f.a ? 'none' : '';
     const d = st.range === 'io' && P.io ? P.io.b - P.io.a : projDur();
-    $('#exmeth', m.el).textContent = nat ? 'Directe (navigateur)' : 'Enregistrement puis conversion';
-    $('#exest', m.el).textContent = nat ? '≈ ' + fmtDur(d + 2) : `≈ ${fmtDur(d + 2)} + conversion${f.a ? ' (rapide)' : ' (plus long)'}`;
+    const fast = SET.fastExp !== false && fastCapable(), direct = ['mp4', 'mp4h', 'webm', 'wav'].includes(f.k) || (fast && ['mov', 'mkv'].includes(f.k));
+    $('#exmeth', m.el).textContent = fast ? (f.a ? 'Mixage instantané' : 'Accélérée (carte graphique)') + (direct ? '' : ' + conversion') : nat ? 'Lecture en temps réel' : 'Lecture en temps réel + conversion';
+    $('#exest', m.el).textContent = fast ? (direct ? 'plus rapide que le temps réel' : 'rendu rapide + conversion') : '≈ ' + fmtDur(d + 2) + (nat ? '' : ' + conversion');
   };
   $('#exfmt', m.el).onchange = upd;
   m.el.addEventListener('click', e => { const b = e.target.closest('.seg button[data-v]'); if (!b || b.disabled) return; $$('button', b.parentElement).forEach(x => x.classList.toggle('on', x === b)); st.range = b.dataset.v; upd(); });
@@ -3364,6 +3537,7 @@ function settingsDialog() {
         ${tog('follow', 'La timeline suit la tête de lecture', SET.follow)}</div></div>
       <div class="isec"><div class="isec-h">${ic('blade', '', ' style="color:#f87171"')}Montage</div><div class="isec-b">
         ${tog('magnet', 'Magnétisme activé', SET.magnet)}
+        ${tog('fastExp', 'Export accéléré (carte graphique, plus rapide que le temps réel)', SET.fastExp !== false)}
         <div class="f2"><div class="f"><label>Durée d'une image (s)</label><input type="number" data-s="imgDur" min="0.2" step="0.5" value="${SET.imgDur}"></div>
         <div class="f"><label>Durée d'un titre (s)</label><input type="number" data-s="titleDur" min="0.5" step="0.5" value="${SET.titleDur}"></div></div></div></div>
       <div class="isec"><div class="isec-h">${ic('save', '', ' style="color:#60a5fa"')}Sauvegarde</div><div class="isec-b">
@@ -3512,7 +3686,7 @@ const GUIDE = [
     <li><b>La partie</b> : tout le montage, ou seulement une zone.</li></ul>
     <h3>La zone</h3>
     <p>Placez la tête de lecture et appuyez sur <kbd>I</kbd> pour le début de la zone, puis <kbd>O</kbd> pour la fin. Vous pouvez aussi faire un <b>clic droit sur la règle</b>. Elle apparaît en bleu sur la règle. Avec la lecture en boucle ${gk('loop')}, l'aperçu tourne sur cette zone.</p>
-    <div class="tip"><b>Bon à savoir :</b> l'export rejoue le montage en temps réel : un film de 3 minutes prend environ 3 minutes, gardez l'onglet affiché. Pour les formats que le navigateur n'enregistre pas lui-même, une étape de <b>conversion</b> suit (indiquée dans la fenêtre d'export avec le temps estimé).</div>
+    <div class="tip"><b>Bon à savoir :</b> sur Chrome, Edge et Safari récents, l'export utilise <b>la carte graphique</b> : les images sont calculées et encodées plus vite que le temps réel, et le son est mixé instantanément. Les formats anciens (AVI, WMV, MPEG-2…) passent ensuite par une étape de conversion. Sur un navigateur plus ancien, l'export rejoue le montage en temps réel : gardez alors l'onglet affiché. L'accélération peut être coupée dans les Paramètres.</div>
     <p>Le même menu enregistre aussi <b>l'image</b> sous la tête de lecture (PNG), par exemple pour une miniature. Le bouton ${gk('camera')} de la palette fait la même capture d'un clic.</p>`],
   ['save', 'save', 'Sauvegarde', `
     <p class="lead">Un projet MOMOmov s'enregistre dans un fichier <b>.mmv</b> qui contient le montage et tous ses médias : vous pouvez le copier sur une clé USB ou un autre ordinateur, tout suivra.</p>
