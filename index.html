@@ -256,7 +256,14 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .rp:last-child{border-bottom:0}
 #top.rnone #rcol,#top.rnone #vs1{display:none}
 /* Catalogue des transitions */
-#trlist{padding:8px 8px 14px}
+#trlist,#fxlist{padding:8px 8px 14px}
+.efrow{display:flex;align-items:center;gap:6px;margin:8px 0 2px}
+.efrow .efn{flex:1;font-weight:600;color:#fff;font-size:12px}
+.efrow button{width:24px;height:24px;border:1px solid var(--g700);background:#111827;border-radius:6px;color:var(--g400);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.efrow button:hover{color:#fff;border-color:var(--g500)}
+.efrow button svg{width:14px;height:14px}
+.efrow.off .efn{color:var(--g500);text-decoration:line-through}
+.trtile.fxt:hover{border-color:#a78bfa}
 .trtop{display:flex;align-items:center;gap:8px;margin:0 2px 8px;font-size:11.5px;color:var(--g400)}
 .trtop input{flex:1;accent-color:#f472b6}
 .trtop b{color:#fff;font:600 11.5px ui-monospace,monospace;background:#111827;border:1px solid var(--g700);border-radius:5px;padding:0 6px}
@@ -531,6 +538,10 @@ setTimeout(done,5600);
           <div class="binfilt" id="binfilt"><button data-f="all" class="on">Tout</button><button data-f="video">Vidéos</button><button data-f="audio">Sons</button><button data-f="image">Images</button></div>
           <div class="pb" id="binlist"></div>
         </section>
+        <section class="rp" id="fxp" data-pane="fx">
+          <div class="ph"><span>Effets</span><span class="sp"></span><button class="pbtn ico pclose" data-act="pane:fx" title="Replier"></button></div>
+          <div class="pb" id="fxlist"></div>
+        </section>
         <section class="rp" id="transp" data-pane="trans">
           <div class="ph"><span>Transitions</span><span class="sp"></span><button class="pbtn ico pclose" data-act="pane:trans" title="Replier"></button></div>
           <div class="pb" id="trlist"></div>
@@ -667,7 +678,7 @@ const SKEY = 'momomov.settings';
 const SET = Object.assign({
   splash: true, startDlg: false, backup: 5, magnet: true, thumbs: true, waves: true, safe: false, exportMute: false,
   tlH: 300, binW: 250, inspW: 290, loop: false, mvol: 1, imgDur: 5, titleDur: 4, follow: true,
-  palC: {}, isec: {}, panes: { tool: false, bin: true, trans: false, insp: false }, rpW: 300, trDur: 0.8, bladeAll: false, titleTpl: 'center'
+  palC: {}, isec: {}, panes: { tool: false, bin: true, fx: false, trans: false, insp: false }, rpW: 300, trDur: 0.8, bladeAll: false, titleTpl: 'center'
 }, (() => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}'); } catch (e) { return {}; } })());
 function saveSet() { try { localStorage.setItem(SKEY, JSON.stringify(SET)); } catch (e) { } }
 
@@ -735,7 +746,7 @@ function mkClip(type, o = {}) {
   return Object.assign({
     id: uid(), type, track: null, start: 0, dur: 5, in: 0, speed: 1, name: '',
     vol: 1, mute: false, afIn: 0, afOut: 0,
-    op: 1, x: 0, y: 0, sc: 1, rot: 0, fx: FX0(),
+    op: 1, x: 0, y: 0, sc: 1, rot: 0, fx: FX0(), efx: [],
     trIn: { t: 'none', d: 0.6 }, trOut: { t: 'none', d: 0.6 },
     txt: type === 'text' ? TXT0() : undefined, color: type === 'color' ? '#363c98' : undefined
   }, o);
@@ -1077,6 +1088,15 @@ function activeVisuals(t) {
 }
 function drawClip(ctx, c, t) {
   const X = clipXform(c, t, trState());
+  const ef = activeFx(c); if (!ef.length) return paintClip(ctx, c, t, X);
+  const o = { W: P.w, H: P.h, k: P.w / 1920, lt: t - c.start, dur: c.dur, frame: Math.round(t * P.fps) };
+  for (const e of ef) if (EFMAP[e.k].xf) { o.a = e.a / 100; o.e = e; EFMAP[e.k].xf(X, o); }
+  const post = ef.filter(e => EFMAP[e.k].f); if (!post.length) return paintClip(ctx, c, t, X);
+  const x = efSize(EB, P.w, P.h); paintClip(x, c, t, X);
+  for (const e of post) { o.a = e.a / 100; o.e = e; EFMAP[e.k].f(x, EB, o); }
+  ctx.drawImage(EB, 0, 0);
+}
+function paintClip(ctx, c, t, X) {
   let src = null;
   if (c.type === 'video') { const p = PL.get(c.id); if (p && p.el.readyState >= 2) src = p.el; else { const m = M.get(c.mediaId); src = m && thumbAt(m, srcTime(c, t)); } }
   else if (c.type === 'image') { const m = M.get(c.mediaId); src = m && m.img; }
@@ -1084,7 +1104,7 @@ function drawClip(ctx, c, t) {
   ctx.globalAlpha = clamp(c.op, 0, 1);
   const f = (c.type === 'video' || c.type === 'image') ? fxFilter(c.fx) : '';
   if (f) ctx.filter = f;
-  ctx.translate(X.cx, X.cy); ctx.rotate(X.r); ctx.scale(X.s, X.s);
+  ctx.translate(X.cx, X.cy); ctx.rotate(X.r); ctx.scale(X.s * (X.fx || 1), X.s * (X.fy || 1));
   if (src) { try { ctx.drawImage(src, -X.w / 2, -X.h / 2, X.w, X.h); } catch (e) { } }
   else if (c.type === 'color') { ctx.fillStyle = c.color; ctx.fillRect(-X.w / 2, -X.h / 2, X.w, X.h); }
   else if (c.type === 'text') drawText(ctx, c, t, X);
@@ -1390,6 +1410,131 @@ function trPreview(cv, k, p) {
 }
 
 /* ==========================================================================
+   Effets : catalogue, empilables par clip (c.efx = [{id,k,a,on,c1,c2}])
+   ========================================================================== */
+const EB = document.createElement('canvas'), ET = document.createElement('canvas'), ET2 = document.createElement('canvas'), ES = document.createElement('canvas');
+function efSize(cv, W, H) {
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const x = cv.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.filter = 'none'; x.globalCompositeOperation = 'source-over'; x.imageSmoothingEnabled = true; x.clearRect(0, 0, W, H); return x;
+}
+function snap(cv, o) { efSize(ET, o.W, o.H).drawImage(cv, 0, 0); return ET; }
+function refilter(x, cv, o, f) { snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.filter = f; x.drawImage(ET, 0, 0); x.restore(); }
+function layer(x, cv, o, op, alpha, paint) { // calque masqué par la forme du clip
+  if (alpha <= 0) return;
+  const t = efSize(ET2, o.W, o.H); paint(t); t.globalCompositeOperation = 'destination-in'; t.drawImage(cv, 0, 0);
+  x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = op; x.globalAlpha = clamp(alpha, 0, 1); x.drawImage(ET2, 0, 0); x.restore();
+}
+function chroma(x, cv, o, d) {
+  snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.globalCompositeOperation = 'lighter';
+  for (const [col, dx] of [['#f00', d], ['#0f0', 0], ['#00f', -d]]) {
+    const t = efSize(ET2, o.W, o.H); t.drawImage(ET, 0, 0); t.globalCompositeOperation = 'multiply'; t.fillStyle = col; t.fillRect(0, 0, o.W, o.H);
+    t.globalCompositeOperation = 'destination-in'; t.drawImage(ET, 0, 0); x.drawImage(ET2, dx, 0);
+  }
+  x.restore();
+}
+function glowOn(x, cv, o, a, blur) { snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'screen'; x.globalAlpha = clamp(a, 0, 1); x.filter = `blur(${blur}px) brightness(1.15)`; x.drawImage(ET, 0, 0); x.restore(); }
+const GRAIN = (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), d = x.createImageData(256, 256), r = rng(3); for (let i = 0; i < d.data.length; i += 4) { const v = r() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return c; })();
+function grainPaint(t, o) { const r = rng(o.frame + 9), p = t.createPattern(GRAIN, 'repeat'); const s = Math.max(.35, o.k * 1.6); p.setTransform(new DOMMatrix([s, 0, 0, s, r() * 256, r() * 256])); t.fillStyle = p; t.fillRect(0, 0, o.W, o.H); }
+function scanPaint(t, o) { const g = Math.max(2, 4 * o.k); t.fillStyle = '#000'; for (let y = 0; y < o.H; y += g) t.fillRect(0, y, o.W, g / 2); }
+function vigPaint(t, o) { const g = t.createRadialGradient(o.W / 2, o.H / 2, Math.min(o.W, o.H) * .28, o.W / 2, o.H / 2, Math.hypot(o.W, o.H) / 2); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); t.fillStyle = g; t.fillRect(0, 0, o.W, o.H); }
+function slices(x, cv, o, n, amp, seed) { snap(cv, o); const r = rng(seed); for (let i = 0; i < n; i++) { const y = r() * o.H, h = (.02 + r() * .1) * o.H, dx = (r() - .5) * 2 * amp; x.clearRect(0, y, o.W, h); x.drawImage(ET, 0, y, o.W, h, dx, y, o.W, h); } }
+
+const EFC = [
+  // ---------- Mouvement (transforment le cadre)
+  { k: 'flipH', cat: 'Mouvement', n: 'Miroir ↔', sl: false, xf: (X) => { X.fx = -(X.fx || 1); } },
+  { k: 'flipV', cat: 'Mouvement', n: 'Miroir ↕', sl: false, xf: (X) => { X.fy = -(X.fy || 1); } },
+  { k: 'shake', cat: 'Mouvement', n: 'Tremblement', xf: (X, o) => { const r = rng(o.frame + 1); X.cx += (r() - .5) * 2 * o.a * 40 * o.k; X.cy += (r() - .5) * 2 * o.a * 40 * o.k; X.r += (r() - .5) * o.a * .03; X.s *= 1 + o.a * .04; } },
+  { k: 'pulse', cat: 'Mouvement', n: 'Pulsation', xf: (X, o) => { X.s *= 1 + o.a * .09 * Math.pow(Math.max(0, Math.sin(o.lt * Math.PI * 4)), 3); } },
+  { k: 'kbIn', cat: 'Mouvement', n: 'Zoom lent avant', xf: (X, o) => { X.s *= 1 + o.a * .3 * clamp(o.lt / o.dur, 0, 1); } },
+  { k: 'kbOut', cat: 'Mouvement', n: 'Zoom lent arrière', xf: (X, o) => { X.s *= 1 + o.a * .3 * (1 - clamp(o.lt / o.dur, 0, 1)); } },
+  { k: 'sway', cat: 'Mouvement', n: 'Balancement', xf: (X, o) => { X.r += Math.sin(o.lt * 2.4) * o.a * .08; } },
+  // ---------- Couleur
+  { k: 'invert', cat: 'Couleur', n: 'Négatif', f: (x, cv, o) => refilter(x, cv, o, `invert(${o.a})`) },
+  { k: 'duo', cat: 'Couleur', n: 'Bichromie', cols: true, f: (x, cv, o) => {
+    refilter(x, cv, o, 'grayscale(1) contrast(1.15)');
+    layer(x, cv, o, 'multiply', o.a, t => { t.fillStyle = o.e.c2 || '#f472b6'; t.fillRect(0, 0, o.W, o.H); });
+    layer(x, cv, o, 'lighten', o.a, t => { t.fillStyle = o.e.c1 || '#1e1b4b'; t.fillRect(0, 0, o.W, o.H); }); } },
+  { k: 'rainbow', cat: 'Couleur', n: 'Arc-en-ciel', f: (x, cv, o) => refilter(x, cv, o, `hue-rotate(${(o.lt * 360 * (.15 + o.a * .85)) % 360}deg) saturate(${1 + o.a * .5})`) },
+  // ---------- Flou & lumière
+  { k: 'blur', cat: 'Flou et lumière', n: 'Flou', f: (x, cv, o) => refilter(x, cv, o, `blur(${o.a * 30 * o.k}px)`) },
+  { k: 'zoomblur', cat: 'Flou et lumière', n: 'Flou radial', f: (x, cv, o) => { snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); for (let i = 1; i <= 6; i++) { const s = 1 + i * o.a * .025; x.globalAlpha = .17; x.drawImage(ET, o.W / 2 * (1 - s), o.H / 2 * (1 - s), o.W * s, o.H * s); } x.restore(); } },
+  { k: 'motion', cat: 'Flou et lumière', n: 'Flou de mouvement', f: (x, cv, o) => { snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); for (let i = 1; i <= 5; i++) { const d = i * o.a * 9 * o.k; x.globalAlpha = .14; x.drawImage(ET, d, 0); x.drawImage(ET, -d, 0); } x.restore(); } },
+  { k: 'glow', cat: 'Flou et lumière', n: 'Lueur', f: (x, cv, o) => glowOn(x, cv, o, o.a, 20 * o.k) },
+  { k: 'halo', cat: 'Flou et lumière', n: 'Halo', f: (x, cv, o) => { refilter(x, cv, o, `brightness(${1 + o.a * .1}) saturate(${1 + o.a * .3})`); glowOn(x, cv, o, o.a * .85, 34 * o.k); } },
+  { k: 'neon', cat: 'Flou et lumière', n: 'Néon', f: (x, cv, o) => { refilter(x, cv, o, `saturate(${1 + o.a * 2}) contrast(${1 + o.a * .4})`); glowOn(x, cv, o, o.a, 10 * o.k); glowOn(x, cv, o, o.a * .7, 30 * o.k); } },
+  { k: 'leakfx', cat: 'Flou et lumière', n: 'Fuite de lumière', f: (x, cv, o) => layer(x, cv, o, 'screen', o.a, t => {
+    const cx = (((o.lt * .25) % 1.6) - .3) * o.W, g = t.createLinearGradient(cx - o.W * .45, 0, cx + o.W * .45, o.H * .35);
+    g.addColorStop(0, 'rgba(255,140,60,0)'); g.addColorStop(.4, 'rgba(255,140,60,.75)'); g.addColorStop(.55, 'rgba(255,235,170,.9)'); g.addColorStop(.7, 'rgba(255,80,130,.55)'); g.addColorStop(1, 'rgba(255,80,130,0)');
+    t.fillStyle = g; t.fillRect(0, 0, o.W, o.H); }) },
+  { k: 'strobe', cat: 'Flou et lumière', n: 'Stroboscope', f: (x, cv, o) => { if (o.frame % 6 < 1) layer(x, cv, o, 'source-over', o.a * .9, t => { t.fillStyle = '#fff'; t.fillRect(0, 0, o.W, o.H); }); } },
+  // ---------- Déformation
+  { k: 'pixfx', cat: 'Déformation', n: 'Pixelisation', f: (x, cv, o) => {
+    snap(cv, o); const b = 2 + o.a * 40 * o.k, w = Math.max(1, Math.round(o.W / b)), h = Math.max(1, Math.round(o.H / b));
+    ES.width = w; ES.height = h; ES.getContext('2d').drawImage(ET, 0, 0, w, h);
+    x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.imageSmoothingEnabled = false; x.drawImage(ES, 0, 0, o.W, o.H); x.restore(); } },
+  { k: 'mirror', cat: 'Déformation', n: 'Symétrie', sl: false, f: (x, cv, o) => { snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.drawImage(ET, 0, 0, o.W / 2, o.H, 0, 0, o.W / 2, o.H); x.translate(o.W, 0); x.scale(-1, 1); x.drawImage(ET, 0, 0, o.W / 2, o.H, 0, 0, o.W / 2, o.H); x.restore(); } },
+  { k: 'kaleido', cat: 'Déformation', n: 'Kaléidoscope', sl: false, f: (x, cv, o) => {
+    snap(cv, o); const w = o.W / 2, h = o.H / 2; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H);
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { x.save(); x.translate(o.W / 2, o.H / 2); x.scale(sx, sy); x.drawImage(ET, 0, 0, w, h, -w, -h, w, h); x.restore(); }
+    x.restore(); } },
+  { k: 'wave', cat: 'Déformation', n: 'Ondulation', f: (x, cv, o) => {
+    snap(cv, o); const h = Math.max(2, 4 * o.k); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H);
+    for (let y = 0; y < o.H; y += h) { const dx = Math.sin(y / o.H * Math.PI * 5 + o.lt * 5) * o.a * 35 * o.k; x.drawImage(ET, 0, y, o.W, h, dx, y, o.W, h); }
+    x.restore(); } },
+  // ---------- Rétro
+  { k: 'vhs', cat: 'Rétro', n: 'VHS', f: (x, cv, o) => {
+    refilter(x, cv, o, `saturate(${1 + o.a * .35}) contrast(1.05) blur(${.8 * o.k}px)`);
+    chroma(x, cv, o, o.a * 7 * o.k);
+    const r = rng(Math.floor(o.frame / 4) + 1); if (r() < .5) slices(x, cv, o, 2, o.a * 25 * o.k, o.frame + 5);
+    layer(x, cv, o, 'multiply', o.a * .35, t => scanPaint(t, o)); layer(x, cv, o, 'overlay', o.a * .45, t => grainPaint(t, o)); } },
+  { k: 'oldfilm', cat: 'Rétro', n: 'Vieux film', f: (x, cv, o) => {
+    const r = rng(o.frame + 17);
+    refilter(x, cv, o, `sepia(${.4 + o.a * .5}) contrast(1.12) brightness(${.92 + r() * .12 * o.a})`);
+    layer(x, cv, o, 'overlay', o.a * .7, t => grainPaint(t, o));
+    layer(x, cv, o, 'source-over', o.a * .55, t => { t.strokeStyle = '#f5f0e0'; t.lineWidth = Math.max(1, 1.5 * o.k); for (let i = 0; i < 3; i++) if (r() < .55) { const sx = r() * o.W; t.beginPath(); t.moveTo(sx, 0); t.lineTo(sx + (r() - .5) * 8 * o.k, o.H); t.stroke(); } });
+    layer(x, cv, o, 'source-over', o.a * .7, t => vigPaint(t, o)); } },
+  { k: 'grain', cat: 'Rétro', n: 'Grain', f: (x, cv, o) => layer(x, cv, o, 'overlay', o.a * .9, t => grainPaint(t, o)) },
+  { k: 'scan', cat: 'Rétro', n: 'Lignes TV', f: (x, cv, o) => layer(x, cv, o, 'multiply', o.a * .6, t => scanPaint(t, o)) },
+  { k: 'chroma', cat: 'Rétro', n: 'Aberration chromatique', f: (x, cv, o) => chroma(x, cv, o, o.a * 14 * o.k) },
+  { k: 'glitchfx', cat: 'Rétro', n: 'Glitch', f: (x, cv, o) => { const r = rng(Math.floor(o.frame / 3) + 3); if (r() < .3 + o.a * .4) { chroma(x, cv, o, (r() - .3) * o.a * 24 * o.k); slices(x, cv, o, 5, o.a * 70 * o.k, o.frame + 11); } } },
+  { k: 'vigfx', cat: 'Rétro', n: 'Vignettage', f: (x, cv, o) => layer(x, cv, o, 'source-over', o.a, t => vigPaint(t, o)) },
+  { k: 'letterbox', cat: 'Rétro', n: 'Cadre cinéma', f: (x, cv, o) => layer(x, cv, o, 'source-over', 1, t => { const h = o.a * .15 * o.H; t.fillStyle = '#000'; t.fillRect(0, 0, o.W, h); t.fillRect(0, o.H - h, o.W, h); }) },
+  // ---------- Ambiance (particules)
+  { k: 'snow', cat: 'Ambiance', n: 'Neige', f: (x, cv, o) => layer(x, cv, o, 'source-over', 1, t => {
+    const r = rng(21), n = Math.round(30 + o.a * 220); t.fillStyle = 'rgba(255,255,255,.9)';
+    for (let i = 0; i < n; i++) { const sp = .05 + r() * .12, ph = r() * 6.28, rad = (1 + r() * 2.6) * Math.max(.6, o.k * 2), xx = ((r() + Math.sin(o.lt * .8 + ph) * .02) % 1) * o.W, yy = ((r() + o.lt * sp) % 1) * o.H; t.beginPath(); t.arc(xx, yy, rad, 0, 6.29); t.fill(); } }) },
+  { k: 'rain', cat: 'Ambiance', n: 'Pluie', f: (x, cv, o) => layer(x, cv, o, 'source-over', .75, t => {
+    const r = rng(23), n = Math.round(40 + o.a * 260); t.strokeStyle = 'rgba(200,220,255,.75)'; t.lineWidth = Math.max(.6, 1.6 * o.k); t.beginPath();
+    for (let i = 0; i < n; i++) { const sp = 1.2 + r() * .8, len = (20 + r() * 30) * o.k * 1.5, xx = r() * o.W * 1.2, yy = ((r() + o.lt * sp) % 1) * (o.H + len) - len; t.moveTo(xx - yy * .12, yy); t.lineTo(xx - (yy + len) * .12, yy + len); }
+    t.stroke(); }) },
+  { k: 'sparkle', cat: 'Ambiance', n: 'Étincelles', f: (x, cv, o) => layer(x, cv, o, 'screen', 1, t => {
+    const r = rng(29), n = Math.round(10 + o.a * 60);
+    for (let i = 0; i < n; i++) { const xx = r() * o.W, yy = r() * o.H, ph = r() * 6.28, sp = 2 + r() * 3, a = Math.pow(Math.max(0, Math.sin(o.lt * sp + ph)), 4), R = (6 + r() * 14) * o.k * 2; if (a < .02) continue;
+      t.save(); t.globalAlpha = a; t.fillStyle = '#fff8d6'; t.translate(xx, yy); t.beginPath(); for (let j = 0; j < 8; j++) { const ang = j * Math.PI / 4, rr = j % 2 ? R * .18 : R; t.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr); } t.fill(); t.restore(); } }) },
+  { k: 'confetti', cat: 'Ambiance', n: 'Confettis', f: (x, cv, o) => layer(x, cv, o, 'source-over', 1, t => {
+    const r = rng(31), n = Math.round(20 + o.a * 140), cols = ['#f472b6', '#fbbf24', '#34d399', '#60a5fa', '#a78bfa', '#f87171'];
+    for (let i = 0; i < n; i++) { const sp = .12 + r() * .18, xx = (r() + Math.sin(o.lt * 1.5 + i) * .015) * o.W, yy = ((r() + o.lt * sp) % 1) * o.H, s = (6 + r() * 8) * o.k * 2, rot = o.lt * (2 + r() * 5) + r() * 6;
+      t.save(); t.translate(xx, yy); t.rotate(rot); t.scale(1, Math.abs(Math.cos(rot * 1.3)) + .15); t.fillStyle = cols[i % cols.length]; t.fillRect(-s / 2, -s / 4, s, s / 2); t.restore(); } }) }
+];
+const EFCATS = [...new Set(EFC.map(e => e.cat))];
+const EFMAP = Object.fromEntries(EFC.map(e => [e.k, e]));
+const efName = k => (EFMAP[k] || { n: '?' }).n;
+function activeFx(c) { return (c.efx || []).filter(e => e.on !== false && EFMAP[e.k]); }
+
+/* aperçu d'un effet sur l'image d'exemple */
+function fxPreview(cv, k, lt) {
+  const W = cv.width, H = cv.height, d = EFMAP[k]; if (!d) return;
+  const e = { k, a: 75, c1: '#1e1b4b', c2: '#f472b6' };
+  const o = { W, H, k: W / 1920, lt, dur: 3, frame: Math.round(lt * 30), a: .75, e };
+  const X = { cx: W / 2, cy: H / 2, s: 1, r: 0, fx: 1, fy: 1 };
+  if (d.xf) d.xf(X, o);
+  const x = efSize(EB, W, H); x.save(); x.translate(X.cx, X.cy); x.rotate(X.r); x.scale(X.s * X.fx, X.s * X.fy); x.drawImage(sample(W, H, 'A'), -W / 2, -H / 2, W, H); x.restore();
+  if (d.f) d.f(x, EB, o);
+  const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.filter = 'none'; c.globalCompositeOperation = 'source-over';
+  c.fillStyle = '#0b0f17'; c.fillRect(0, 0, W, H); c.drawImage(EB, 0, 0);
+}
+
+/* ==========================================================================
    Édition : insertion, écrasement, découpe, pistes, marqueurs, looks, titres
    ========================================================================== */
 function tracksOf(kind) { return P.tracks.filter(t => t.kind === kind); }
@@ -1603,6 +1748,15 @@ function transToSel(k, side) {
   toast(`${trName(k)} ${side === 'in' ? 'au début' : 'à la fin'} ${list.length > 1 ? 'des clips' : 'du clip'}`, 'ok');
 }
 
+/* ---------- Effets ---------- */
+function addEffect(c, k) { if (!isVisual(c) || !EFMAP[k]) return; c.efx = c.efx || []; c.efx.push({ id: uid(), k, a: 70, on: true, c1: '#1e1b4b', c2: '#f472b6' }); }
+function fxToSel(k) {
+  const list = selClips().filter(isVisual);
+  if (!list.length) { toast('Glissez l\'effet sur un clip de la timeline, ou sélectionnez un clip'); return; }
+  act(() => { for (const c of list) addEffect(c, k); });
+  toast(`${efName(k)} ajouté`, 'ok');
+}
+
 /* ---------- Titres ---------- */
 const TITLES = [
   { k: 'center', n: 'Titre centré', i: 'text', o: { txt: { s: 'Votre titre', size: 120, b: true, font: 'Montserrat' }, trIn: { t: 'fade', d: .6 }, trOut: { t: 'fade', d: .6 } } },
@@ -1722,6 +1876,7 @@ function TLpaint() {
     const w = Math.max(18, x.d * TL.z), bx = xAt(x.t0) - w / 2, by = r.y + r.h * .42, bh = r.h * .58 - 3;
     drawTBox(ctx, bx, by, w, bh, trName(c.trIn.t), SEL.has(c.id)); TL.tboxes.push({ x: bx, y: by, w, h: bh, c, t0: x.t0 });
   }
+  if (TL.fghost) { const r = clipRect(TL.fghost, lay); if (r) { ctx.save(); ctx.fillStyle = '#a78bfa44'; rr(ctx, r.x, r.y, r.w, r.h, 6); ctx.fill(); ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore(); } }
   if (TL.tghost) {
     const g = TL.tghost, r = clipRect(g.c, lay);
     if (r) {
@@ -1816,6 +1971,7 @@ function drawTLClip(ctx, c, lay) {
   let label = c.name || ({ video: 'Vidéo', image: 'Image', text: 'Texte', color: 'Couleur', audio: 'Son' })[c.type];
   if (c.speed !== 1) label = `×${+c.speed.toFixed(2)}  ` + label;
   if (c.mute && isAV(c)) label = '(muet) ' + label;
+  if (c.efx && c.efx.some(e => e.on !== false)) label = 'fx · ' + label;
   ctx.fillText(label, Math.max(r.x, 0) + 6, r.y + HH / 2 + .5);
   ctx.restore();
   // contour
@@ -1904,6 +2060,10 @@ function TLinit() {
   const wrap = $('#tlwrap');
   wrap.addEventListener('dragover', e => {
     const types = [...e.dataTransfer.types];
+    if (types.includes('application/x-momomov-fx')) {
+      e.preventDefault(); e.stopPropagation(); const { x, y } = TLlocal(e); const c = clipAt(x, y);
+      TL.fghost = c && isVisual(c) && !lockedClip(c) ? c : null; e.dataTransfer.dropEffect = TL.fghost ? 'copy' : 'none'; TLdraw(); return;
+    }
     if (types.includes('application/x-momomov-trans')) {
       e.preventDefault(); e.stopPropagation(); const { x, y } = TLlocal(e); const c = clipAt(x, y);
       if (!c || !isVisual(c) || lockedClip(c)) { TL.tghost = null; e.dataTransfer.dropEffect = 'none'; TLdraw(); return; }
@@ -1919,9 +2079,11 @@ function TLinit() {
     if (s1.d <= s2.d && s1.s !== null) t = s1.v; else if (s2.s !== null) t = s2.v - dur;
     TL.ghost = { t: fsnap(Math.max(0, t)), track: tr.id, dur, name: md ? md.name : 'Fichiers…' }; TLdraw();
   });
-  wrap.addEventListener('dragleave', e => { if (!wrap.contains(e.relatedTarget)) { TL.ghost = null; TL.tghost = null; TLdraw(); } });
+  wrap.addEventListener('dragleave', e => { if (!wrap.contains(e.relatedTarget)) { TL.ghost = null; TL.tghost = null; TL.fghost = null; TLdraw(); } });
   wrap.addEventListener('drop', e => {
     e.preventDefault(); e.stopPropagation(); $('#dropzone').classList.add('hidden');
+    const fk = e.dataTransfer.getData('application/x-momomov-fx') || DRAGFX;
+    if (fk) { const c = TL.fghost; TL.fghost = null; DRAGFX = null; if (c) { act(() => addEffect(c, fk)); SEL = new Set([c.id]); refreshAll(); toast(efName(fk) + ' ajouté', 'ok'); } TLdraw(); return; }
     const tk = e.dataTransfer.getData('application/x-momomov-trans') || DRAGTRANS;
     if (tk) { const g = TL.tghost; TL.tghost = null; DRAGTRANS = null; if (g) { act(() => applyTrans(g.c, g.side, tk)); SEL = new Set([g.c.id]); refreshAll(); toast(trName(tk) + ' posée', 'ok'); } TLdraw(); return; }
     const g = TL.ghost; TL.ghost = null;
@@ -2156,7 +2318,7 @@ function textEditor(c) {
       <div class="isub">Animation</div>
       <div class="seg"><button data-do="anim:none" class="${x.anim === 'none' ? 'on' : ''}">Aucune</button><button data-do="anim:type" class="${x.anim === 'type' ? 'on' : ''}" title="Les lettres apparaissent une à une">${ic('type')}Machine</button><button data-do="anim:scroll" class="${x.anim === 'scroll' ? 'on' : ''}" title="Le texte défile de bas en haut">${ic('scroll')}Défilement</button></div>`);
   }
-const PANES = [['tool', 'toolp', 'cursor', 'Outil en cours'], ['bin', 'bin', 'film', 'Médiathèque'], ['trans', 'transp', 'trans', 'Transitions'], ['insp', 'insp', 'sliders', 'Projet']];
+const PANES = [['tool', 'toolp', 'cursor', 'Outil en cours'], ['bin', 'bin', 'film', 'Médiathèque'], ['fx', 'fxp', 'fx', 'Effets'], ['trans', 'transp', 'trans', 'Transitions'], ['insp', 'insp', 'sliders', 'Projet']];
 function buildPanes() {
   $('#binimp').innerHTML = ic('import') + 'Importer';
   $$('.pclose').forEach(b => b.innerHTML = ic('x'));
@@ -2169,6 +2331,7 @@ function applyPanes() {
   for (const [k, id] of PANES) { const on = !!SET.panes[k]; any = any || on; $('#' + id).classList.toggle('open', on); const t = $(`[data-tab="${k}"]`); if (t) t.classList.toggle('on', on); }
   $('#top').classList.toggle('rnone', !any);
   if (SET.panes.trans && !$('#trlist').childElementCount) renderTransPane();
+  if (SET.panes.fx && !$('#fxlist').childElementCount) renderFxPane();
 }
 function onlyPane(k) { for (const [q] of PANES) SET.panes[q] = q === k; }
 function togglePane(k) { if (SET.panes[k]) SET.panes[k] = false; else onlyPane(k); saveSet(); applyPanes(); }
@@ -2192,6 +2355,24 @@ function renderTransPane() {
   box.addEventListener('click', e => { const el = e.target.closest('.trtile'); if (el) transToSel(el.dataset.tk, e.shiftKey ? 'out' : 'in'); });
   box.addEventListener('dragstart', e => { const el = e.target.closest('.trtile'); if (!el) return; DRAGTRANS = el.dataset.tk; e.dataTransfer.setData('application/x-momomov-trans', DRAGTRANS); e.dataTransfer.effectAllowed = 'copy'; });
   box.addEventListener('dragend', () => { DRAGTRANS = null; TL.tghost = null; TLdraw(); });
+}
+
+/* ---------- Catalogue des effets ---------- */
+let DRAGFX = null;
+function renderFxPane() {
+  const box = $('#fxlist');
+  box.innerHTML = EFCATS.map(cat => `<div class="trcat">${cat}</div><div class="trgrid">${EFC.filter(t => t.cat === cat).map(t => `<div class="trtile fxt" draggable="true" data-fk="${t.k}" title="${esc(t.n)} — glisser sur un clip, ou clic : ajouter au clip sélectionné"><canvas width="160" height="90"></canvas><span>${esc(t.n)}</span></div>`).join('')}</div>`).join('');
+  $$('.trtile', box).forEach(el => fxPreview(el.querySelector('canvas'), el.dataset.fk, 1.2));
+  box.addEventListener('mouseover', e => {
+    const el = e.target.closest('.trtile'); if (!el || el._anim) return;
+    el._anim = true; const cv = el.querySelector('canvas'), k = el.dataset.fk, t0 = performance.now();
+    const loop = now => { if (!el._anim) return; fxPreview(cv, k, ((now - t0) / 1000) % 3); requestAnimationFrame(loop); };
+    requestAnimationFrame(loop);
+  });
+  box.addEventListener('mouseout', e => { const el = e.target.closest('.trtile'); if (!el || el.contains(e.relatedTarget)) return; el._anim = false; fxPreview(el.querySelector('canvas'), el.dataset.fk, 1.2); });
+  box.addEventListener('click', e => { const el = e.target.closest('.trtile'); if (el) fxToSel(el.dataset.fk); });
+  box.addEventListener('dragstart', e => { const el = e.target.closest('.trtile'); if (!el) return; DRAGFX = el.dataset.fk; e.dataTransfer.setData('application/x-momomov-fx', DRAGFX); e.dataTransfer.effectAllowed = 'copy'; });
+  box.addEventListener('dragend', () => { DRAGFX = null; TL.fghost = null; TLdraw(); });
 }
 
 /* ---------- Outil en cours ---------- */
@@ -2482,6 +2663,13 @@ function refreshInsp() {
       <div class="ibtns"><button class="ibtn wide" data-do="resetfx">${ic('reset')}Couleurs d'origine</button></div>`);
   }
   if (vis) {
+    const ef = c.efx || [];
+    h += sec('efx', `Effets${ef.length ? ' · ' + ef.length : ''}`, 'fx', '#a78bfa', ef.map((e, i) => { const d = EFMAP[e.k] || {}; return `<div class="efrow${e.on === false ? ' off' : ''}"><span class="efn">${esc(efName(e.k))}</span><button data-efon="${i}" title="${e.on === false ? 'Activer' : 'Désactiver'}">${ic(e.on === false ? 'eyeoff' : 'eye')}</button><button data-efdel="${i}" title="Retirer">${ic('x')}</button></div>
+      ${d.sl === false ? '' : `<div class="f"><label>Intensité<b data-efv="${i}">${e.a} %</b></label><input type="range" data-efa="${i}" min="0" max="100" step="1" value="${e.a}"></div>`}
+      ${d.cols ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || '#1e1b4b'}" title="Couleur des ombres"><input type="color" data-efc="${i}:c2" value="${e.c2 || '#f472b6'}" title="Couleur des lumières"></div>` : ''}`; }).join('') +
+      `<div class="ibtns"><button class="ibtn wide" data-act="pane:fx">${ic('fx')}Catalogue des effets</button></div>`);
+  }
+  if (vis) {
     const opts = cur => `<option value="none"${cur === 'none' ? ' selected' : ''}>Aucune</option>` + TRCATS.map(cat => `<optgroup label="${cat}">${TRC.filter(t => t.cat === cat).map(t => `<option value="${t.k}"${t.k === cur ? ' selected' : ''}>${t.n}</option>`).join('')}</optgroup>`).join('');
     const pa = adjPrev(c), nb = adjNext(c);
     const row = (side, tr, other) => `<div class="isub" style="display:flex;justify-content:space-between">${side === 'in' ? 'Entrée' : 'Sortie'}<span style="text-transform:none;letter-spacing:0;font-weight:500">${other ? '↔ ' + esc(other.name || 'clip') : side === 'in' ? 'apparition' : 'disparition'}</span></div>
@@ -2549,6 +2737,13 @@ function inspInit(box) {
     begin(); const side = el.dataset.tdur, v = +el.value;
     for (const c of selClips()) if (isVisual(c)) { const tr = trTarget(c, side); if (tr.t !== 'none') tr.d = v; }
     const b = box.querySelector(`[data-tv="${side}"]`); if (b) b.textContent = v.toFixed(2) + ' s'; reqDraw(); TLdraw();
+  });
+  box.addEventListener('input', e => { const el = e.target; if (el.dataset.efa === undefined) return; e.stopImmediatePropagation(); const c = selClips()[0]; if (!c || !c.efx[+el.dataset.efa]) return; begin(); c.efx[+el.dataset.efa].a = +el.value; const b = box.querySelector(`[data-efv="${el.dataset.efa}"]`); if (b) b.textContent = el.value + ' %'; reqDraw(); });
+  box.addEventListener('change', e => { const el = e.target; if (el.dataset.efa !== undefined) { e.stopImmediatePropagation(); commit(); return; } if (el.dataset.efc) { e.stopImmediatePropagation(); const [i, k] = el.dataset.efc.split(':'); act(() => { const c = selClips()[0]; if (c && c.efx[+i]) c.efx[+i][k] = el.value; }); } });
+  box.addEventListener('click', e => {
+    const on = e.target.closest('[data-efon]'), del = e.target.closest('[data-efdel]'); const c = selClips()[0];
+    if (on && c) act(() => { const f = c.efx[+on.dataset.efon]; f.on = f.on === false; });
+    if (del && c) act(() => { c.efx.splice(+del.dataset.efdel, 1); });
   });
   box.addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (b) { SET.titleTpl = b.dataset.tpl; saveSet(); renderToolPane(); } });
   const read = el => { if (el.type === 'checkbox') return el.checked; if (el.type === 'range' || el.type === 'number') return parseFloat(el.value) / (+el.dataset.mul || 1); return el.value; };
@@ -2667,7 +2862,7 @@ function normalize(proj) {
   proj.markers = proj.markers || []; proj.media = proj.media || [];
   proj.clips = (proj.clips || []).map(c => {
     const n = Object.assign(mkClip(c.type), c);
-    n.fx = Object.assign(FX0(), c.fx || {}); n.trIn = Object.assign({ t: 'none', d: .6 }, c.trIn); n.trOut = Object.assign({ t: 'none', d: .6 }, c.trOut);
+    n.fx = Object.assign(FX0(), c.fx || {}); n.efx = Array.isArray(c.efx) ? c.efx : []; n.trIn = Object.assign({ t: 'none', d: .6 }, c.trIn); n.trOut = Object.assign({ t: 'none', d: .6 }, c.trOut);
     if (n.type === 'text') n.txt = Object.assign(TXT0(), c.txt || {});
     if (!proj.tracks.some(t => t.id === n.track)) n.track = proj.tracks.find(t => t.kind === (n.type === 'audio' ? 'a' : 'v')).id;
     return n;
@@ -3130,6 +3325,12 @@ const GUIDE = [
     <li>Le <b>contour</b> rend le texte lisible sur n'importe quelle image ; le <b>bandeau</b> pose un fond coloré derrière.</li>
     <li><b>Animation</b> : <b>Machine</b> fait apparaître les lettres une à une, <b>Défilement</b> fait monter le texte du bas vers le haut sur toute la durée du clip, comme un générique de fin.</li></ul>
     <div class="tip"><b>Astuce :</b> pour qu'un générique défile plus lentement, allongez simplement le clip.</div>`],
+  ['effets', 'fx', 'Effets', `
+    <p class="lead">Le volet <b>Effets</b> rassemble plus de 30 effets à appliquer sur un clip : mouvement, couleur, flou et lumière, déformation, rétro et ambiance. Survolez une vignette pour la voir jouer.</p>
+    <ul><li><b>Glissez</b> une vignette sur un clip de la timeline (il s'entoure de violet), ou <b>cliquez</b> dessus pour l'ajouter aux clips sélectionnés.</li>
+    <li>Les effets se <b>cumulent</b> : VHS + Neige, Néon + Pulsation… Un clip qui porte des effets affiche « fx » dans la timeline.</li>
+    <li>Dans les propriétés du clip, le bloc <b>Effets</b> liste les effets posés : réglez leur intensité, masquez-les temporairement avec l'œil ou retirez-les avec la croix.</li></ul>
+    <div class="tip"><b>Astuce :</b> les effets d'ambiance (neige, pluie, confettis, étincelles) se posent aussi sur un titre ou une couleur unie.</div>`],
   ['trans', 'trans', 'Transitions', `
     <p class="lead">Le volet <b>Transitions</b> est un catalogue de plus de 50 effets, rangés par famille : fondus, glissements, volets, formes, mouvements et effets stylisés. Survolez une vignette pour la voir jouer.</p>
     <h3>Poser une transition</h3>
