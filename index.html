@@ -258,6 +258,24 @@ aside.tools{width:144px;background:var(--g800);border-right:1px solid var(--g700
 .rp.open{display:flex}
 .rp:last-child{border-bottom:0}
 #top.rnone #rcol,#top.rnone #vs1{display:none}
+/* Sous-titres */
+.thd.s .tn{background:#facc15}
+.subrow{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:start;padding:5px;border-radius:8px;border:1px solid transparent}
+.subrow.cur{border-color:#facc15;background:color-mix(in srgb,#facc15 10%,#111827)}
+.subrow textarea{width:100%;background:#111827;border:1px solid var(--g700);border-radius:6px;color:var(--g200);padding:4px 6px;resize:vertical;font:12.5px/1.35 system-ui;user-select:text;min-height:38px}
+.subrow textarea:focus{outline:none;border-color:#facc15}
+.subt{font:600 11px ui-monospace,monospace;color:#facc15;background:none;border:0;cursor:pointer;padding:5px 2px}
+.subx{width:22px;height:22px;border:0;background:none;color:var(--g500);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;margin-top:6px}.subx:hover{color:#f87171}.subx svg{width:13px;height:13px}
+#syncbar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(680px,94%);background:#0b0f17f0;border:1px solid #facc15;border-radius:12px;padding:10px 14px 12px;z-index:20;color:var(--g300)}
+#syncbar.rec{border-color:#ef4444;box-shadow:0 0 0 3px #ef444444}
+.sbh{display:flex;align-items:center;gap:8px;font-size:12px}.sbh svg{width:16px;height:16px;color:#facc15}.sbh b{color:#fff}.sbh span{color:var(--g500)}
+.sbx{margin-left:auto;display:flex;align-items:center;gap:5px;background:#273244;border:1px solid var(--g600);border-radius:7px;color:var(--g200);padding:3px 9px;cursor:pointer;font-size:12px}.sbx svg{width:13px;height:13px}
+.sbcur{margin:8px 0 4px;color:#fff;font:600 18px/1.3 system-ui;text-align:center;white-space:pre-line;min-height:24px}
+#syncbar.rec .sbcur{color:#fde047}
+.sbnext{color:var(--g500);font-size:12px;text-align:center;min-height:16px}
+.sbtip{color:var(--g500);font-size:11px;text-align:center;margin-top:6px}.sbtip kbd{font:11px ui-monospace,monospace;color:var(--amber);border:1px solid var(--g600);border-radius:4px;padding:0 4px}
+.sbhold{display:block;margin:8px auto 0;padding:7px 18px;border-radius:9px;border:1px solid #facc15;background:#3a3210;color:#fde047;font-weight:700;cursor:pointer;touch-action:none}
+#syncbar.rec .sbhold{background:#7f1d1d;border-color:#ef4444;color:#fff}
 /* Atelier DVD */
 .hbtn.dvdb{gap:5px;padding:0 9px;position:relative}
 .hbtn.dvdb svg{color:#f87171}
@@ -719,6 +737,8 @@ const IC = {
   type: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/><path d="M17 15h4" stroke-dasharray="1.5 1.5"/>',
   scroll: '<path d="M12 3v18M8 7l4-4 4 4"/><path d="M5 12h4M15 12h4M5 16h4M15 16h4"/>',
   disc: '<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 5.2a6.8 6.8 0 0 1 6.8 6.8"/>',
+  cc: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M6 15h5M13 15h5M6 11.5h3M11 11.5h7"/>',
+  wave: '<path d="M3 12h1M6.5 8v8M10 5v14M13.5 9v6M17 7v10M20.5 11v2"/>',
   hd: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9v6M6 12h4M10 9v6M14 9v6h2a3 3 0 0 0 0-6z"/>'
 };
 function ic(n, cls = '', extra = '') {
@@ -812,13 +832,13 @@ const trackById = id => P.tracks.find(t => t.id === id);
 const trackOf = c => trackById(c.track);
 const media = id => P.media.find(m => m.id === id);
 const isAV = c => c.type === 'video' || c.type === 'audio';
-const isVisual = c => c.type !== 'audio';
+const isVisual = c => c.type !== 'audio' && c.type !== 'sub';
 const cEnd = c => c.start + c.dur;
 function projDur() { let e = 0; for (const c of P.clips) e = Math.max(e, cEnd(c)); return e; }
 function trackName(tr) {
   const same = P.tracks.filter(t => t.kind === tr.kind);
   const i = same.indexOf(tr);
-  return tr.kind === 'v' ? 'V' + (same.length - i) : 'A' + (i + 1);
+  return tr.kind === 'v' ? 'V' + (same.length - i) : tr.kind === 's' ? 'ST' + (same.length > 1 ? i + 1 : '') : 'A' + (i + 1);
 }
 function srcLen(c) { // durée source restante consommable pour un clip média
   const m = media(c.mediaId); if (!m || !isAV(c)) return Infinity;
@@ -1224,6 +1244,7 @@ function drawFrame(ctx, t) {
   TW = P.w; TH = P.h;
   const vt = P.tracks.filter(k => k.kind === 'v');
   for (let i = vt.length - 1; i >= 0; i--) if (!vt[i].hide) drawLayer(ctx, vt[i], t);
+  drawSubs(ctx, t);
   ctx.restore();
 }
 
@@ -1602,7 +1623,7 @@ function fxPreview(cv, k, lt) {
 function tracksOf(kind) { return P.tracks.filter(t => t.kind === kind); }
 function addTrack(kind) {
   const t = { id: kind + uid(), kind };
-  if (kind === 'v') P.tracks.unshift(t);
+  if (kind === 'v' || kind === 's') P.tracks.unshift(t);
   else P.tracks.push(t);
   return t;
 }
@@ -1614,7 +1635,7 @@ function findTrack(kind, s, e) {
   for (const t of order) if (!t.lock && trackFree(t, s, e)) return t;
   return addTrack(kind);
 }
-function clipKindForTrack(c) { return c.type === 'audio' ? 'a' : 'v'; }
+function clipKindForTrack(c) { return c.type === 'audio' ? 'a' : c.type === 'sub' ? 's' : 'v'; }
 function insertMedia(md, t, trackId) {
   const type = md.kind === 'audio' ? 'audio' : md.kind === 'image' ? 'image' : 'video';
   const dur = md.kind === 'image' ? SET.imgDur : Math.floor(md.dur * P.fps + 1e-6) / P.fps;
@@ -1871,18 +1892,229 @@ function purgeMedia() {
 }
 
 /* ==========================================================================
+   Sous-titres : piste ST, détection des phrases, découpe du texte,
+   répartition, synchro clavier, import / export SRT · VTT · ASS
+   ========================================================================== */
+const SUB0 = () => ({ font: 'Roboto', size: 5.2, color: '#ffffff', b: true, stroke: 9, strokeC: '#000000', bg: false, bgC: '#000000', bgA: .6, pos: 'bottom', margin: 7 });
+const subStyle = () => (P.subStyle = Object.assign(SUB0(), P.subStyle || {}));
+function subTrack() { let t = P.tracks.find(k => k.kind === 's'); if (!t) { t = { id: 's' + uid(), kind: 's' }; P.tracks.unshift(t); } return t; }
+const subClips = () => P.clips.filter(c => c.type === 'sub').sort((a, b) => a.start - b.start);
+const subRange = () => P.io ? [P.io.a, P.io.b] : [0, Math.max(projDur(), 1)];
+function addSub(s, e, text, tr) {
+  tr = tr || subTrack();
+  const c = mkClip('sub', { track: tr.id, start: fsnap(Math.max(0, s)), dur: Math.max(1 / P.fps, fsnap(e - s)), text: text || '', name: '' });
+  P.clips.push(c); return c;
+}
+function clearSubs(a, b) { P.clips = P.clips.filter(c => !(c.type === 'sub' && cEnd(c) > a + EPS && c.start < b - EPS)); }
+
+/* ---------- Rendu dans l'image ---------- */
+function wrapLines(ctx, txt, maxW) {
+  const out = [];
+  for (const para of String(txt).split('\n')) {
+    const words = para.split(/\s+/).filter(Boolean); let line = '';
+    for (const w of words) { const t = line ? line + ' ' + w : w; if (line && ctx.measureText(t).width > maxW) { out.push(line); line = w; } else line = t; }
+    out.push(line);
+  }
+  return out;
+}
+function drawSubs(ctx, t) {
+  const S = subStyle();
+  for (const tr of P.tracks) {
+    if (tr.kind !== 's' || tr.hide) continue;
+    const c = P.clips.find(q => q.track === tr.id && t >= q.start - EPS && t < cEnd(q) - EPS);
+    if (!c || !String(c.text || '').trim()) continue;
+    ensureFont(S.font);
+    const size = S.size / 100 * P.h, lh = size * 1.22;
+    ctx.save(); ctx.font = `${S.b ? '700' : '400'} ${size}px "${S.font}", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lines = wrapLines(ctx, c.text, P.w * .88), H = lines.length * lh, m = S.margin / 100 * P.h;
+    const y0 = S.pos === 'top' ? m : S.pos === 'middle' ? (P.h - H) / 2 : P.h - m - H;
+    lines.forEach((l, i) => {
+      const y = y0 + i * lh + lh / 2;
+      if (S.bg) { const w = ctx.measureText(l).width + size * .7; ctx.save(); ctx.globalAlpha = S.bgA; ctx.fillStyle = S.bgC; ctx.beginPath(); ctx.roundRect(P.w / 2 - w / 2, y - lh / 2, w, lh, size * .15); ctx.fill(); ctx.restore(); }
+      if (S.stroke > 0) { ctx.lineJoin = 'round'; ctx.lineWidth = size * S.stroke / 100 * 2; ctx.strokeStyle = S.strokeC; ctx.strokeText(l, P.w / 2, y); }
+      ctx.fillStyle = S.color; ctx.fillText(l, P.w / 2, y);
+    });
+    ctx.restore();
+  }
+}
+
+/* ---------- Détection des phrases (énergie du son) ---------- */
+async function speechSegments(a, b) {
+  const sr = 16000, buf = await renderMix(a, b, sr), d0 = buf.getChannelData(0), d1 = buf.getChannelData(1);
+  const hop = 320, n = Math.floor(buf.length / hop), fr = hop / sr, e = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = i * hop; j < (i + 1) * hop; j++) { const v = (d0[j] + d1[j]) * .5; s += v * v; } e[i] = 10 * Math.log10(s / hop + 1e-10); }
+  const so = Array.from(e).sort((x, y) => x - y), floor = so[Math.floor(n * .15)] || -100, peak = so[Math.floor(n * .97)] || -100;
+  if (peak - floor < 8) return [];
+  const thr = floor + Math.max(6, (peak - floor) * .32);
+  const v = new Uint8Array(n); for (let i = 0; i < n; i++) v[i] = e[i] > thr ? 1 : 0;
+  const fill = (val, maxLen) => { let i = 0; while (i < n) { if (v[i] === val) { let j = i; while (j < n && v[j] === val) j++; if (j - i < maxLen && i > 0 && j < n) for (let k = i; k < j; k++) v[k] = 1 - val; i = j; } else i++; } };
+  fill(0, Math.round(.32 / fr)); fill(1, Math.round(.22 / fr));
+  let segs = []; for (let i = 0; i < n;) { if (v[i]) { let j = i; while (j < n && v[j]) j++; segs.push([i, j]); i = j; } else i++; }
+  const split = ([s, t]) => { const L = t - s, maxF = Math.round(6 / fr), minF = Math.round(1.8 / fr); if (L <= maxF) return [[s, t]]; let best = s + minF, bv = 1e9; for (let k = s + minF; k < t - minF; k++) if (e[k] < bv) { bv = e[k]; best = k; } return [...split([s, best]), ...split([best, t])]; };
+  segs = segs.flatMap(split).map(([s, t]) => [a + s * fr - .08, a + t * fr + .15]);
+  for (let i = 1; i < segs.length; i++) if (segs[i][0] < segs[i - 1][1]) { const m = (segs[i][0] + segs[i - 1][1]) / 2; segs[i - 1][1] = m; segs[i][0] = m; }
+  return segs.map(([s, t]) => [Math.max(a, s), Math.min(b, t)]).filter(([s, t]) => t - s > .25);
+}
+async function subDetect() {
+  if (!P.clips.some(isAV)) { toast('Aucun son dans le montage : ajoutez une vidéo ou un son'); return; }
+  const [a, b] = subRange(), had = subClips().some(c => cEnd(c) > a && c.start < b);
+  if (had && !await confirmP('Des sous-titres existent déjà dans cette partie. Les remplacer par les phrases détectées ?', 'Remplacer')) return;
+  const bz = busyBox('Écoute du son et détection des phrases…'); bz.prog(30);
+  let segs; try { segs = await speechSegments(a, b); } catch (e) { bz.close(); toast('Détection impossible : ' + e.message, 'err'); return; }
+  bz.close();
+  if (!segs.length) { toast('Aucune parole nette détectée dans cette partie', 'err'); return; }
+  act(() => { clearSubs(a, b); const tr = subTrack(); for (const [s, t] of segs) addSub(s, t, '', tr); });
+  setTool('sub'); toast(`${segs.length} phrase${segs.length > 1 ? 's' : ''} détectée${segs.length > 1 ? 's' : ''} : tapez le texte de chaque bloc`, 'ok', 5000);
+}
+
+/* ---------- Découpe d'un texte en sous-titres lisibles ---------- */
+function splitSubText(txt, max = 42) {
+  const chunks = [], clean = String(txt).replace(/\r/g, '').split(/\n\s*\n/).map(p => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const pieces = s => { if (s.length <= max * 2) return [s]; for (const re of [/(?<=[,;:])\s+/, /\s+(?=(?:et|mais|ou|donc|car|puis|qui|que|quand|parce)\b)/i]) { const p = s.split(re); if (p.length > 1) { const out = []; let cur = ''; for (const x of p) { if (cur && (cur + ' ' + x).length > max * 2) { out.push(cur); cur = x; } else cur = cur ? cur + ' ' + x : x; } if (cur) out.push(cur); if (out.every(o => o.length <= max * 2)) return out; return out.flatMap(o => o.length > max * 2 ? pieces2(o) : [o]); } } return pieces2(s); };
+  const pieces2 = s => { const w = s.split(' '), out = []; let cur = ''; for (const x of w) { if (cur && (cur + ' ' + x).length > max * 2) { out.push(cur); cur = x; } else cur = cur ? cur + ' ' + x : x; } if (cur) out.push(cur); return out; };
+  for (const para of clean) for (const sent of para.split(/(?<=[.!?…»])\s+/)) for (const p of pieces(sent)) chunks.push(twoLines(p, max));
+  return chunks;
+}
+function twoLines(s, max) {
+  if (s.length <= max) return s;
+  const mid = s.length / 2; let best = -1, bd = 1e9;
+  for (let i = 0; i < s.length; i++) if (s[i] === ' ' && Math.abs(i - mid) < bd) { bd = Math.abs(i - mid); best = i; }
+  return best > 0 ? s.slice(0, best) + '\n' + s.slice(best + 1) : s;
+}
+/* répartit des morceaux de texte sur les phrases parlées */
+async function subDistribute(chunks) {
+  const [a, b] = subRange();
+  let segs = subClips().filter(c => cEnd(c) > a && c.start < b).map(c => [c.start, cEnd(c)]);
+  if (!segs.length && P.clips.some(isAV)) { const bz = busyBox('Détection des phrases…'); bz.prog(30); try { segs = await speechSegments(a, b); } catch (e) { segs = []; } bz.close(); }
+  if (!segs.length) { const d = (b - a) / chunks.length; segs = chunks.map((_, i) => [a + i * d, a + (i + 1) * d - .1]); }
+  let out = [];
+  if (segs.length === chunks.length) out = segs.map((s, i) => [s[0], s[1], chunks[i]]);
+  else {
+    const S = segs.reduce((x, s) => x + s[1] - s[0], 0), tot = chunks.reduce((x, c) => x + c.length + 8, 0);
+    const starts = []; { let acc = 0; for (const [s0, t0] of segs) { starts.push(acc); acc += t0 - s0; } }
+    let pos = 0; const tmp = [];
+    for (const c of chunks) {
+      const len = S * (c.length + 8) / tot, p0 = pos, p1 = pos + len; let bi = 0, bo = -1;
+      segs.forEach(([s0, t0], i) => { const o = Math.min(p1, starts[i] + t0 - s0) - Math.max(p0, starts[i]); if (o > bo) { bo = o; bi = i; } });
+      const [s0, t0] = segs[bi], q0 = starts[bi];
+      tmp.push({ i: bi, s: clamp(s0 + (p0 - q0), s0, t0), e: clamp(s0 + (p1 - q0), s0, t0), c }); pos = p1;
+    }
+    tmp.forEach((x, k) => { const pv = tmp[k - 1], nx = tmp[k + 1]; if (!pv || pv.i !== x.i) x.s = segs[x.i][0]; if (!nx || nx.i !== x.i) x.e = segs[x.i][1]; if (pv && x.s < pv.e) x.s = pv.e; });
+    out = tmp.map(x => [x.s, Math.max(x.s + .5, x.e), x.c]);
+  }
+  act(() => { clearSubs(a, b); const tr = subTrack(); for (const [s, e, t] of out) addSub(s, e, t, tr); });
+  setTool('sub'); toast(`${out.length} sous-titres placés : vérifiez-les en lecture`, 'ok', 5000);
+}
+function subPasteDialog() {
+  const m = modal(`<div class="mh">${ic('cc', '', ' style="color:#facc15"')}Coller un texte<button class="x" data-close>${ic('x')}</button></div>
+    <div class="mb"><div class="f"><textarea id="subtxt" rows="12" placeholder="Collez ici le texte prononcé (script, discours, paroles…)">${esc(SUBQ.raw || '')}</textarea></div>
+    <div class="kv"><span>Sous-titres obtenus</span><b id="subcnt">0</b></div></div>
+    <div class="mf"><button class="btn" data-close>Annuler</button><button class="btn" id="subsy">${ic('keyb')}Synchroniser au clavier</button><button class="btn pri" id="subdi">${ic('wave')}Répartir automatiquement</button></div>`);
+  const ta = $('#subtxt', m.el), cnt = () => { $('#subcnt', m.el).textContent = splitSubText(ta.value).length; };
+  ta.oninput = cnt; cnt(); ta.focus();
+  const get = () => { SUBQ.raw = ta.value; const c = splitSubText(ta.value); if (!c.length) { toast('Le texte est vide'); return null; } return c; };
+  $('#subdi', m.el).onclick = () => { const c = get(); if (c) { m.close(); subDistribute(c); } };
+  $('#subsy', m.el).onclick = () => { const c = get(); if (c) { m.close(); subSyncStart(c); } };
+}
+const SUBQ = { raw: '' };
+
+/* ---------- Synchronisation au clavier (maintenir Espace) ---------- */
+const SYNC = { on: false, lines: [], i: 0, t0: null };
+function subSync() { if (SUBQ.raw.trim()) subSyncStart(splitSubText(SUBQ.raw)); else { toast('Collez d\'abord le texte à synchroniser'); subPasteDialog(); } }
+function subSyncStart(lines) {
+  pause(); SYNC.on = true; SYNC.lines = lines; SYNC.i = 0; SYNC.t0 = null; begin();
+  let bar = $('#syncbar'); if (!bar) { bar = document.createElement('div'); bar.id = 'syncbar'; $('#vwrap').appendChild(bar); }
+  bar.innerHTML = `<div class="sbh">${ic('keyb')}<b>Synchronisation</b><span id="sbn"></span><button class="sbx" id="sbstop">${ic('x')}Terminer</button></div>
+    <div class="sbcur" id="sbcur"></div><div class="sbnext" id="sbnext"></div>
+    <div class="sbtip">Maintenez <kbd>Espace</kbd> (ou le bouton) pendant que la phrase est dite, relâchez à la fin · <kbd>Retour</kbd> revient d'une phrase · <kbd>Échap</kbd> termine</div>
+    <button class="sbhold" id="sbhold">Maintenir pendant la phrase</button>`;
+  $('#sbstop').onclick = subSyncEnd;
+  const hb = $('#sbhold'); hb.onpointerdown = e => { e.preventDefault(); syncDown(); }; hb.onpointerup = hb.onpointerleave = () => syncUp();
+  syncShow(); play();
+}
+function syncShow() {
+  const bar = $('#syncbar'); if (!bar) return;
+  $('#sbn').textContent = `phrase ${Math.min(SYNC.i + 1, SYNC.lines.length)} / ${SYNC.lines.length}`;
+  $('#sbcur').textContent = SYNC.lines[SYNC.i] || '—'; $('#sbnext').textContent = SYNC.lines[SYNC.i + 1] ? 'Ensuite : ' + SYNC.lines[SYNC.i + 1].replace('\n', ' ') : '';
+  bar.classList.toggle('rec', SYNC.t0 !== null);
+}
+function syncDown() { if (!SYNC.on || SYNC.t0 !== null) return; if (!PLAY.on) play(); SYNC.t0 = T; syncShow(); }
+function syncUp() {
+  if (!SYNC.on || SYNC.t0 === null) return;
+  const s = SYNC.t0, e = Math.max(T, s + .4); SYNC.t0 = null;
+  const tr = subTrack(); P.clips = P.clips.filter(c => !(c.type === 'sub' && c.track === tr.id && cEnd(c) > s + EPS && c.start < e - EPS));
+  addSub(s, e, SYNC.lines[SYNC.i], tr); SYNC.i++; TLdraw(); reqDraw();
+  if (SYNC.i >= SYNC.lines.length) { subSyncEnd(); return; } syncShow();
+}
+function syncBack() { if (!SYNC.on || SYNC.i === 0) return; const tr = subTrack(), last = P.clips.filter(c => c.type === 'sub' && c.track === tr.id).sort((x, y) => y.start - x.start)[0]; if (last) { P.clips.splice(P.clips.indexOf(last), 1); setTime(last.start - 1); } SYNC.i--; syncShow(); }
+function subSyncEnd() {
+  if (!SYNC.on) return; SYNC.on = false; SYNC.t0 = null; pause();
+  const bar = $('#syncbar'); if (bar) bar.remove();
+  commit(); refreshAll(); setTool('sub');
+  toast(SYNC.i >= SYNC.lines.length ? 'Toutes les phrases sont synchronisées' : `${SYNC.i} phrase${SYNC.i > 1 ? 's' : ''} synchronisée${SYNC.i > 1 ? 's' : ''}`, 'ok');
+}
+window.addEventListener('keydown', e => {
+  if (!SYNC.on) return;
+  if (e.code === 'Space') { e.preventDefault(); e.stopImmediatePropagation(); if (!e.repeat) syncDown(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); subSyncEnd(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); e.stopImmediatePropagation(); syncBack(); }
+}, true);
+window.addEventListener('keyup', e => { if (SYNC.on && e.code === 'Space') { e.preventDefault(); e.stopImmediatePropagation(); syncUp(); } }, true);
+
+/* ---------- Import / export ---------- */
+function parseTime(s) { const m = String(s).trim().replace(',', '.').match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/); return m ? (+(m[1] || 0)) * 3600 + +m[2] * 60 + +m[3] : null; }
+function parseSubsText(txt) {
+  txt = txt.replace(/^﻿/, '').replace(/\r/g, ''); const out = [];
+  if (/^\[Script Info\]/m.test(txt) || /^Dialogue:/m.test(txt)) {
+    for (const l of txt.split('\n')) { if (!l.startsWith('Dialogue:')) continue; const f = l.slice(9).split(','); if (f.length < 10) continue; const s = parseTime(f[1]), e = parseTime(f[2]); const t = f.slice(9).join(',').replace(/\{[^}]*\}/g, '').replace(/\\[Nn]/g, '\n').trim(); if (s !== null && e !== null && t) out.push([s, e, t]); }
+    return out;
+  }
+  for (const blk of txt.split(/\n\s*\n/)) {
+    const ls = blk.split('\n'), k = ls.findIndex(l => l.includes('-->')); if (k < 0) continue;
+    const [a, b] = ls[k].split('-->'), s = parseTime(a), e = parseTime(b.trim().split(/\s+/)[0]);
+    const t = ls.slice(k + 1).join('\n').replace(/<[^>]+>/g, '').replace(/\{\\[^}]*\}/g, '').trim();
+    if (s !== null && e !== null && t) out.push([s, e, t]);
+  }
+  return out;
+}
+async function subImport() {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.srt,.vtt,.ass,.ssa,.sub,.txt,video/*,.mkv,.mov,.mp4';
+  i.onchange = async () => {
+    const f = i.files[0]; if (!f) return; let list = [];
+    if (/\.(srt|vtt|ass|ssa|txt|sub)$/i.test(f.name)) list = parseSubsText(await f.text());
+    else {
+      const box = ffBox(`Extraction des sous-titres de « ${f.name} »`);
+      try { const b = await ffRun(f, extOf(f.name), 'srt', ['-map', '0:s:0'], p => box.prog(p), (s, p) => box.status(s, p)); box.close(); list = parseSubsText(await b.text()); }
+      catch (e) { box.close(); if (!box.cancelled) toast('Aucun sous-titre texte trouvé dans cette vidéo', 'err', 4500); return; }
+    }
+    if (!list.length) { toast('Aucun sous-titre reconnu dans ce fichier', 'err'); return; }
+    act(() => { const tr = subTrack(); const s0 = list[0][0], e0 = list[list.length - 1][1]; clearSubs(s0, e0); for (const [s, e, t] of list) addSub(s, e, t, tr); });
+    setTool('sub'); toast(`${list.length} sous-titres importés`, 'ok');
+  };
+  i.click();
+}
+function fmtSubTime(t, vtt) { t = Math.max(0, t); const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60, r = ms % 1000; const p = (n, l = 2) => String(n).padStart(l, '0'); return `${p(h)}:${p(m)}:${p(s)}${vtt ? '.' : ','}${p(r, 3)}`; }
+function subExport(kind) {
+  const list = subClips().filter(c => String(c.text || '').trim()); if (!list.length) { toast('Aucun sous-titre à exporter'); return; }
+  const vtt = kind === 'vtt';
+  const body = (vtt ? 'WEBVTT\n\n' : '') + list.map((c, i) => `${vtt ? '' : (i + 1) + '\n'}${fmtSubTime(c.start, vtt)} --> ${fmtSubTime(cEnd(c), vtt)}\n${c.text.trim()}\n`).join('\n');
+  download(new Blob([body], { type: vtt ? 'text/vtt' : 'application/x-subrip' }), safeName(P.name) + (vtt ? '.vtt' : '.srt'));
+  toast(`${list.length} sous-titres exportés en ${vtt ? 'VTT' : 'SRT'}`, 'ok');
+}
+
+/* ==========================================================================
    Timeline (canvas) : règle, pistes, clips, glisser, rogner, lame, aimant
    ========================================================================== */
 const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: null, hover: null, W: 0, H: 0, dpr: 1 };
 const RH = 26;
-const trH = tr => tr.kind === 'v' ? 62 : 50;
+const trH = tr => tr.kind === 'v' ? 62 : tr.kind === 's' ? 40 : 50;
 const COL = {
-  video: ['#2c4396', '#4f7cff'], image: ['#4b3a91', '#a78bfa'], text: ['#7a4e12', '#f59e0b'], color: ['#7a2152', '#ec4899'], audio: ['#0d5c45', '#10b981']
+  sub: ['#4a3c0a', '#facc15'], video: ['#2c4396', '#4f7cff'], image: ['#4b3a91', '#a78bfa'], text: ['#7a4e12', '#f59e0b'], color: ['#7a2152', '#ec4899'], audio: ['#0d5c45', '#10b981']
 };
 let TLC = null, TLX = null;
 function tAt(x) { return TL.sx + x / TL.z; }
 function xAt(t) { return (t - TL.sx) * TL.z; }
-function visTracks() { const v = SET.tview || 'av'; return P.tracks.filter(t => v === 'av' || t.kind === v); }
+function visTracks() { const v = SET.tview || 'av'; return P.tracks.filter(t => v === 'av' || (v === 'a' ? t.kind === 'a' : t.kind !== 'a')); }
 function trackLayout() { let y = RH - TL.sy; const out = []; for (const tr of visTracks()) { const h = trH(tr); out.push({ tr, y, h }); y += h; } return out; }
 function tracksHeight() { return visTracks().reduce((s, t) => s + trH(t), 0); }
 function trackAtY(y) { for (const L of trackLayout()) if (y >= L.y && y < L.y + L.h) return L.tr; return null; }
@@ -1916,7 +2148,7 @@ function TLpaint() {
   const lay = trackLayout();
   // fonds de pistes
   lay.forEach((L, i) => {
-    ctx.fillStyle = L.tr.kind === 'v' ? (i % 2 ? '#18202e' : '#1a2332') : (i % 2 ? '#162321' : '#182725');
+    ctx.fillStyle = L.tr.kind === 'v' ? (i % 2 ? '#18202e' : '#1a2332') : L.tr.kind === 's' ? '#1e1c14' : (i % 2 ? '#162321' : '#182725');
     ctx.fillRect(0, L.y, W, L.h);
     ctx.fillStyle = '#0f141c'; ctx.fillRect(0, L.y + L.h - 1, W, 1);
     if (L.tr.lock) { ctx.save(); ctx.beginPath(); ctx.rect(0, L.y, W, L.h); ctx.clip(); ctx.strokeStyle = '#ffffff0d'; ctx.lineWidth = 6; for (let x = -L.h; x < W; x += 18) { ctx.beginPath(); ctx.moveTo(x, L.y + L.h); ctx.lineTo(x + L.h, L.y); ctx.stroke(); } ctx.restore(); }
@@ -1989,7 +2221,7 @@ function drawTLClip(ctx, c, lay) {
   ctx.save();
   rr(ctx, r.x, r.y, r.w, r.h, 6); ctx.fillStyle = c.type === 'color' ? c.color : body; ctx.fill();
   ctx.save(); ctx.clip();
-  const HH = 16, cy = r.y + HH, ch = r.h - HH;
+  const HH = c.type === 'sub' ? r.h : 16, cy = r.y + HH, ch = r.h - HH;
   if (c.type === 'video' && m && SET.thumbs && m.thumbs.length) {
     const ar = (md.w || 16) / (md.h || 9), tw = Math.max(24, ch * ar);
     const x0 = Math.max(r.x, -tw), x1 = Math.min(r.x + r.w, TL.W + tw);
@@ -2031,6 +2263,7 @@ function drawTLClip(ctx, c, lay) {
   ctx.fillStyle = head; ctx.globalAlpha = .92; ctx.fillRect(r.x, r.y, r.w, HH); ctx.globalAlpha = 1;
   ctx.fillStyle = '#0b0f17'; ctx.font = '700 10.5px system-ui,sans-serif'; ctx.textBaseline = 'middle';
   let label = c.name || ({ video: 'Vidéo', image: 'Image', text: 'Texte', color: 'Couleur', audio: 'Son' })[c.type];
+  if (c.type === 'sub') label = String(c.text || '').trim() ? c.text.replace(/\n/g, ' / ') : '…';
   if (c.speed !== 1) label = `×${+c.speed.toFixed(2)}  ` + label;
   if (c.mute && isAV(c)) label = '(muet) ' + label;
   if (c.efx && c.efx.some(e => e.on !== false)) label = 'fx · ' + label;
@@ -2291,7 +2524,7 @@ function trackMenu(x, y, tr, t) {
 /* ==========================================================================
    Interface : en-tête, palette, médiathèque, aperçu, transport, inspecteur
    ========================================================================== */
-const KTYPE = { video: ['Vidéo', 'film', '#4f7cff'], image: ['Image', 'image', '#a78bfa'], text: ['Texte', 'text', '#f59e0b'], color: ['Couleur', 'palette', '#ec4899'], audio: ['Son', 'music', '#10b981'] };
+const KTYPE = { sub: ['Sous-titre', 'cc', '#facc15'], video: ['Vidéo', 'film', '#4f7cff'], image: ['Image', 'image', '#a78bfa'], text: ['Texte', 'text', '#f59e0b'], color: ['Couleur', 'palette', '#ec4899'], audio: ['Son', 'music', '#10b981'] };
 const chevSVG = () => `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
 const kb = k => `<kbd>${k}</kbd>`;
 const mb = (actn, label, k = '', icn = '') => `<button data-act="${actn}"><span class="mi">${icn ? ic(icn) : ''}${label}</span>${k ? kb(k) : ''}</button>`;
@@ -2360,6 +2593,7 @@ const PAL = [
   ['montage', 'Montage', [['split', 'split', 'Scinder à la tête de lecture (S)', 'c-red'], ['del', 'trash', 'Supprimer (Suppr)', 'c-red'], ['ripple', 'ripple', 'Supprimer et refermer le vide (Maj+Suppr)', 'c-orange'],
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
+  ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
   ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function textEditor(c) {
@@ -2438,8 +2672,54 @@ function renderFxPane() {
   box.addEventListener('dragend', () => { DRAGFX = null; TL.fghost = null; TLdraw(); });
 }
 
+/* ---------- Atelier sous-titres (volet Outil en cours) ---------- */
+function subPane() {
+  const S = subStyle(), list = subClips();
+  const fonts = `<optgroup label="Polices web">${Object.keys(FONTS_G).map(f => `<option${f === S.font ? ' selected' : ''}>${f}</option>`).join('')}</optgroup><optgroup label="Polices système">${FONTS_S.map(f => `<option${f === S.font ? ' selected' : ''}>${f}</option>`).join('')}</optgroup>`;
+  return sec('subact', 'Créer', 'wave', '#34d399', `<div class="ibtns" style="margin-top:2px">
+      <button class="ibtn" data-act="subdetect">${ic('wave')}Détecter les phrases</button><button class="ibtn" data-act="subpaste">${ic('text')}Coller un texte</button>
+      <button class="ibtn" data-act="subsync">${ic('keyb')}Synchro clavier</button><button class="ibtn" data-act="subadd">${ic('plus')}Sous-titre ici</button>
+      <button class="ibtn" data-act="subimport">${ic('import')}Importer</button><button class="ibtn" data-act="subclear">${ic('trash')}Tout effacer</button>
+      <button class="ibtn" data-act="subexport:srt">${ic('install')}Exporter SRT</button><button class="ibtn" data-act="subexport:vtt">${ic('install')}Exporter VTT</button></div>`) +
+    sec('substyle', 'Style', 'palette', '#facc15', `
+      <div class="f"><label>Police</label><select data-sk="font" style="font-family:'${esc(S.font)}'">${fonts}</select></div>
+      <div class="f"><label>Taille<b data-skv="size">${S.size.toFixed(1)} %</b></label><input type="range" data-sk="size" min="2" max="12" step=".1" value="${S.size}"></div>
+      <div class="f fc"><input type="color" data-sk="color" value="${S.color}" title="Couleur du texte"><div class="seg" style="flex:1"><button data-skb="b" class="${S.b ? 'on' : ''}">${ic('bold')}Gras</button></div></div>
+      <div class="isub">Contour</div><div class="fc"><input type="color" data-sk="strokeC" value="${S.strokeC}"><div style="flex:1" class="f"><label>Épaisseur<b data-skv="stroke">${S.stroke} %</b></label><input type="range" data-sk="stroke" min="0" max="25" step="1" value="${S.stroke}"></div></div>
+      <div class="isub">Bandeau</div>${tog('sk:bg', 'Bandeau derrière le texte', S.bg)}
+      ${S.bg ? `<div class="fc"><input type="color" data-sk="bgC" value="${S.bgC}"><div style="flex:1" class="f"><label>Opacité<b data-skv="bgA">${Math.round(S.bgA * 100)} %</b></label><input type="range" data-sk="bgA" min="0" max="1" step=".01" value="${S.bgA}"></div></div>` : ''}
+      <div class="isub">Position</div><div class="seg">${[['top', 'Haut'], ['middle', 'Milieu'], ['bottom', 'Bas']].map(([k, n]) => `<button data-skp="${k}" class="${S.pos === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+      <div class="f"><label>Marge<b data-skv="margin">${S.margin} %</b></label><input type="range" data-sk="margin" min="0" max="30" step="1" value="${S.margin}"></div>`) +
+    sec('sublist', `Liste · ${list.length}`, 'cc', '#facc15', list.length ? list.map(c => `<div class="subrow" data-s="${c.start}" data-e="${cEnd(c)}"><button class="subt" data-subgo="${c.id}" title="Aller à ce sous-titre">${tc(c.start, P.fps, false)}</button><textarea data-subtxt="${c.id}" rows="2" placeholder="Texte…">${esc(c.text || '')}</textarea><button class="subx" data-subdel="${c.id}" title="Supprimer">${ic('x')}</button></div>`).join('') : '<div class="ihint">Aucun sous-titre pour l\'instant</div>');
+}
+function subPaneInit(box) {
+  const S = () => subStyle();
+  box.addEventListener('input', e => {
+    const el = e.target;
+    if (el.dataset.sk) { e.stopImmediatePropagation(); begin(); const k = el.dataset.sk; S()[k] = el.type === 'range' ? +el.value : el.value; const v = box.querySelector(`[data-skv="${k}"]`); if (v) v.textContent = k === 'bgA' ? Math.round(+el.value * 100) + ' %' : k === 'size' ? (+el.value).toFixed(1) + ' %' : el.value + ' %'; if (k === 'font') { ensureFont(el.value); el.style.fontFamily = `'${el.value}'`; } reqDraw(); return; }
+    if (el.dataset.subtxt) { e.stopImmediatePropagation(); const c = clipById(el.dataset.subtxt); if (c) { begin(); c.text = el.value; reqDraw(); TLdraw(); } }
+  }, true);
+  box.addEventListener('change', e => {
+    const el = e.target;
+    if (el.dataset.sk || el.dataset.subtxt) { e.stopImmediatePropagation(); commit(); return; }
+    if (el.dataset.k && el.dataset.k.startsWith('sk:')) { e.stopImmediatePropagation(); act(() => { S()[el.dataset.k.slice(3)] = el.checked; }); }
+  }, true);
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-skb],[data-skp],[data-subgo],[data-subdel]'); if (!b) return;
+    if (b.dataset.skb) act(() => { S()[b.dataset.skb] = !S()[b.dataset.skb]; });
+    else if (b.dataset.skp) act(() => { S().pos = b.dataset.skp; });
+    else if (b.dataset.subgo) { const c = clipById(b.dataset.subgo); if (c) setTime(c.start, { follow: true }); }
+    else if (b.dataset.subdel) act(() => { P.clips = P.clips.filter(c => c.id !== b.dataset.subdel); });
+  });
+  box.addEventListener('focusin', e => { const t = e.target.closest('[data-subtxt]'); if (t) { const c = clipById(t.dataset.subtxt); if (c && !PLAY.on) setTime(c.start + 1e-3, { follow: true }); } });
+  box.addEventListener('keydown', e => {
+    const t = e.target.closest('[data-subtxt]'); if (!t || e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault(); commit(); const all = $$('[data-subtxt]', box), i = all.indexOf(t); if (all[i + 1]) all[i + 1].focus(); else t.blur();
+  });
+}
+
 /* ---------- Outil en cours ---------- */
-const TOOLS = { sel: ['Sélection', 'cursor', 'V', '#60a5fa'], blade: ['Lame', 'blade', 'C', '#f87171'], title: ['Titre', 'text', 'T', '#f59e0b'] };
+const TOOLS = { sub: ['Sous-titres', 'cc', 'U', '#facc15'], sel: ['Sélection', 'cursor', 'V', '#60a5fa'], blade: ['Lame', 'blade', 'C', '#f87171'], title: ['Titre', 'text', 'T', '#f59e0b'] };
 function renderToolPane() {
   const box = $('#toolb'); if (!box || !P) return;
   const [n, i, k, col] = TOOLS[TL.tool] || TOOLS.sel;
@@ -2449,7 +2729,8 @@ function renderToolPane() {
   if (TL.tool === 'blade') h += sec('tblade', 'Réglages', 'sliders', '#f87171', tog('set:bladeAll', 'Couper toutes les pistes à la fois', SET.bladeAll) + tog('set:magnet', 'Aimanter la coupe à la tête de lecture', SET.magnet));
   if (TL.tool === 'title') h += sec('ttpl', 'Modèle', 'text', '#f59e0b', `<div class="tpls">${TITLES.map(t => `<button class="tpl${SET.titleTpl === t.k ? ' on' : ''}" data-tpl="${t.k}">${ic(t.i)}${t.n}</button>`).join('')}</div>
     <div class="ibtns"><button class="ibtn wide" data-act="title:${SET.titleTpl}">${ic('plus')}Insérer à la tête de lecture</button></div>`);
-  if (tc0) h += textEditor(tc0);
+  if (TL.tool === 'sub') h += subPane();
+  if (tc0 && TL.tool !== 'sub') h += textEditor(tc0);
   box.innerHTML = h;
 }
 function buildTools() {
@@ -2461,6 +2742,7 @@ function updTools() {
   $$('[data-act="tool:sel"]').forEach(b => b.classList.toggle('active', TL.tool === 'sel'));
   $$('[data-act="tool:blade"]').forEach(b => b.classList.toggle('active', TL.tool === 'blade'));
   $$('[data-act="tool:title"]').forEach(b => b.classList.toggle('active', TL.tool === 'title'));
+  $$('[data-act="tool:sub"]').forEach(b => b.classList.toggle('active', TL.tool === 'sub'));
   $$('[data-act="magnet"]').forEach(b => b.classList.toggle('on', SET.magnet));
   $$('[data-act="safe"]').forEach(b => b.classList.toggle('on', SET.safe));
   $$('[data-act="loop"]').forEach(b => b.classList.toggle('on', SET.loop));
@@ -2468,7 +2750,7 @@ function updTools() {
   const mg = $('#tlmag'); if (mg) mg.classList.toggle('on', SET.magnet);
   if (TLC) TLC.style.cursor = TL.tool === 'blade' ? 'crosshair' : 'default';
 }
-function setTool(t) { TL.tool = t; updTools(); TLdraw(); renderToolPane(); if (t === 'title') showPane('tool'); const v = $('#vwrap'); if (v) v.style.cursor = t === 'title' ? 'text' : ''; }
+function setTool(t) { TL.tool = t; updTools(); TLdraw(); renderToolPane(); if (t === 'title' || t === 'sub') showPane('tool'); const v = $('#vwrap'); if (v) v.style.cursor = t === 'title' ? 'text' : ''; }
 
 /* ---------- Barre de timeline + têtes de pistes ---------- */
 function buildTLBar() {
@@ -2488,8 +2770,8 @@ function renderHeads() {
   let y = 0;
   box.innerHTML = visTracks().map(tr => {
     const h = trH(tr); const v = tr.kind === 'v'; const s = `top:${y}px;height:${h}px`; y += h;
-    return `<div class="thd ${tr.kind}" style="${s}" data-tr="${tr.id}"><span class="tn">${trackName(tr)}</span><span class="tnm${tr.name ? '' : ' tph'}" title="Double-cliquer pour renommer la piste">${esc(tr.name || (v ? 'Vidéo' : 'Audio'))}</span>
-      ${v ? `<button data-tk="hide" class="${tr.hide ? 'off' : ''}" title="${tr.hide ? 'Afficher la piste' : 'Masquer la piste'}">${ic(tr.hide ? 'eyeoff' : 'eye')}</button>` : `<button data-tk="mute" class="${tr.mute ? 'off' : ''}" title="${tr.mute ? 'Rétablir le son' : 'Couper le son de la piste'}">${ic(tr.mute ? 'mute' : 'vol')}</button>`}
+    return `<div class="thd ${tr.kind}" style="${s}" data-tr="${tr.id}"><span class="tn">${trackName(tr)}</span><span class="tnm${tr.name ? '' : ' tph'}" title="Double-cliquer pour renommer la piste">${esc(tr.name || (v ? 'Vidéo' : tr.kind === 's' ? 'Sous-titres' : 'Audio'))}</span>
+      ${tr.kind !== 'a' ? `<button data-tk="hide" class="${tr.hide ? 'off' : ''}" title="${tr.hide ? 'Afficher la piste' : 'Masquer la piste'}">${ic(tr.hide ? 'eyeoff' : 'eye')}</button>` : `<button data-tk="mute" class="${tr.mute ? 'off' : ''}" title="${tr.mute ? 'Rétablir le son' : 'Couper le son de la piste'}">${ic(tr.mute ? 'mute' : 'vol')}</button>`}
       <button data-tk="lock" class="${tr.lock ? 'lk' : ''}" title="${tr.lock ? 'Déverrouiller' : 'Verrouiller la piste'}">${ic(tr.lock ? 'lock' : 'unlock')}</button>
       <button data-tk="del" class="del" title="Supprimer la piste">${ic('x')}</button></div>`;
   }).join('');
@@ -2673,6 +2955,7 @@ function updTC() {
   const a = $('#tcur'); if (a) a.textContent = tc(T);
   const d = $('#tdur'); if (d) d.textContent = tc(projDur());
   const m = $('#tcmini'); if (m) m.textContent = tc(T, P.fps, false);
+  if (TL.tool === 'sub') $$('#toolb .subrow').forEach(r => r.classList.toggle('cur', T >= +r.dataset.s && T < +r.dataset.e));
 }
 
 /* ---------- Inspecteur ---------- */
@@ -2700,6 +2983,7 @@ function refreshInsp() {
     ${av ? `<div class="f"><label>Vitesse</label><div class="seg">${[0.25, 0.5, 1, 1.5, 2, 4].map(v => `<button data-do="speed:${v}" class="${c.speed === v ? 'on' : ''}">×${String(v).replace('.', ',')}</button>`).join('')}</div></div>
     <div class="kv"><span>Extrait de la source</span><b>${tc(c.in)} → ${tc(c.in + c.dur * c.speed)}</b></div>` : ''}
     ${md ? `<div class="kv"><span>Média</span><b title="${esc(md.name)}">${esc(md.name.length > 22 ? md.name.slice(0, 21) + '…' : md.name)}</b></div>` : ''}`);
+  if (c.type === 'sub') h += sec('subtxt', 'Texte du sous-titre', 'cc', '#facc15', `<div class="f"><textarea data-k="text" rows="3">${esc(c.text || '')}</textarea></div><div class="ibtns"><button class="ibtn wide" data-act="tool:sub">${ic('cc')}Style et liste des sous-titres</button></div>`);
   if (c.type === 'color') h += sec('color', 'Couleur unie', 'palette', '#ec4899', `<div class="f fc"><input type="color" data-k="color" value="${c.color}"><span style="color:var(--g400)">${c.color}</span></div>
     <div class="chips" style="grid-template-columns:repeat(8,1fr)">${['#000000', '#ffffff', '#363c98', '#111827', '#b91c1c', '#059669', '#f59e0b', '#ec4899'].map(k => `<button class="chip" data-do="col:${k}" title="${k}"><i style="background:${k};height:18px;border:1px solid #fff3"></i></button>`).join('')}</div>`);
   if (vis) {
@@ -2924,7 +3208,7 @@ function normalize(proj) {
     const n = Object.assign(mkClip(c.type), c);
     n.fx = Object.assign(FX0(), c.fx || {}); n.efx = Array.isArray(c.efx) ? c.efx : []; n.trIn = Object.assign({ t: 'none', d: .6 }, c.trIn); n.trOut = Object.assign({ t: 'none', d: .6 }, c.trOut);
     if (n.type === 'text') n.txt = Object.assign(TXT0(), c.txt || {});
-    if (!proj.tracks.some(t => t.id === n.track)) n.track = proj.tracks.find(t => t.kind === (n.type === 'audio' ? 'a' : 'v')).id;
+    if (!proj.tracks.some(t => t.id === n.track)) { const k = n.type === 'audio' ? 'a' : n.type === 'sub' ? 's' : 'v'; let tr = proj.tracks.find(t => t.kind === k); if (!tr) { tr = { id: k + uid(), kind: k }; proj.tracks.unshift(tr); } n.track = tr.id; }
     return n;
   });
   return proj;
@@ -3759,6 +4043,16 @@ const GUIDE = [
     <h3>Le format du projet</h3>
     <p>Dans l'onglet <b>Projet</b> (sans clip sélectionné), le bouton <b>Changer le format…</b> permet de passer d'un format paysage à un format portrait ou carré, changer la résolution, la cadence ou la couleur de fond, même en cours de montage.</p>
 `],
+  ['soustitres', 'cc', 'Sous-titres', `
+    <p class="lead">Les sous-titres ont leur propre piste <b>ST</b>, tout en haut de la timeline : on les déplace, les rogne et les coupe comme n'importe quel clip. Ils sont incrustés dans la vidéo à l'export, et peuvent aussi être enregistrés à part en SRT ou VTT.</p>
+    <p>La famille <b>Sous-titres</b> de la palette regroupe ${gk('cc')} l'<b>outil Sous-titres</b> (<kbd>U</kbd>), ${gk('wave')} <b>Détecter les phrases</b> et ${gk('keyb')} <b>Synchro clavier</b>. L'outil ouvre l'atelier dans le volet <b>Outil en cours</b> : actions, style et liste de tous les sous-titres.</p>
+    <h3>Trois façons de travailler</h3>
+    <ul><li><b>Détecter puis taper</b> : MOMOmov écoute le son et crée un bloc vide pour chaque phrase parlée, déjà calé. Dans la liste, cliquez dans un bloc (la lecture se place dessus), tapez le texte, <kbd>Entrée</kbd> passe au suivant (<kbd>Maj</kbd>+<kbd>Entrée</kbd> pour aller à la ligne).</li>
+    <li><b>Coller un texte et répartir</b> : collez le texte prononcé (script, discours…). Il est découpé en sous-titres lisibles (2 lignes de 42 caractères au plus, coupés aux ponctuations) puis réparti automatiquement sur les phrases détectées. Il reste à vérifier en lecture.</li>
+    <li><b>Synchro clavier</b> : après avoir collé le texte, lancez la synchro. Le montage défile ; <b>maintenez Espace</b> pendant que chaque phrase est dite et relâchez à la fin. <kbd>Retour</kbd> revient d'une phrase, <kbd>Échap</kbd> termine.</li></ul>
+    <h3>Style, import et export</h3>
+    <p>Le bloc <b>Style</b> règle la police, la taille, la couleur, le contour, le bandeau et la position (haut, milieu, bas) de tous les sous-titres d'un coup. <b>Importer</b> lit les fichiers SRT, VTT et ASS, ainsi que les sous-titres texte contenus dans une vidéo MKV ou MP4. <b>Exporter SRT / VTT</b> crée le fichier à joindre sur YouTube ou dans un lecteur.</p>
+    <div class="tip"><b>Astuce :</b> la détection et la répartition travaillent sur la <b>zone</b> (<kbd>I</kbd> / <kbd>O</kbd>) si elle est définie, sinon sur tout le montage. Masquez la piste ST avec l'œil pour exporter sans sous-titres incrustés.</div>`],
   ['dvd', 'disc', 'Atelier DVD', `
     <p class="lead">Le bouton <b>DVD</b> de l'en-tête ouvre l'atelier qui transforme un DVD vidéo en fichiers MP4, rangés directement dans la médiathèque.</p>
     <h3>1. Copier le DVD</h3>
@@ -3781,6 +4075,7 @@ const GUIDE = [
       <tr><td><kbd>V</kbd> <kbd>C</kbd></td><td>Outil Sélection / Lame</td></tr>
       <tr><td><kbd>S</kbd></td><td>Scinder à la tête de lecture</td></tr>
       <tr><td><kbd>T</kbd></td><td>Outil Titre (cliquer ensuite dans l'aperçu)</td></tr>
+      <tr><td><kbd>U</kbd></td><td>Outil Sous-titres</td></tr>
       <tr><td><kbd>M</kbd></td><td>Poser un marqueur</td></tr>
       <tr><td><kbd>I</kbd> <kbd>O</kbd></td><td>Début / fin de zone · <kbd>Alt</kbd>+<kbd>X</kbd> pour l'effacer</td></tr>
       <tr><td><kbd>Suppr</kbd></td><td>Supprimer · <kbd>Maj</kbd>+<kbd>Suppr</kbd> en refermant le vide</td></tr>
@@ -4123,6 +4418,13 @@ function doAct(a) {
     case 'tool': return setTool(v);
     case 'pane': return togglePane(v);
     case 'dvd': return openDvd();
+    case 'subdetect': return subDetect();
+    case 'subpaste': return subPasteDialog();
+    case 'subsync': return subSync();
+    case 'subimport': return subImport();
+    case 'subexport': return subExport(v);
+    case 'subadd': { let id; act(() => { const c = addSub(T, T + 2, '', subTrack()); resolve([c]); id = c.id; }); setTool('sub'); showPane('tool'); setTimeout(() => { const t = $(`[data-subtxt="${id}"]`); if (t) t.focus(); }, 50); return; }
+    case 'subclear': if (!subClips().length) return toast('Aucun sous-titre'); return confirmBox('Effacer tous les sous-titres du montage ?', () => act(() => { P.clips = P.clips.filter(c => c.type !== 'sub'); }), 'Effacer');
     case 'tview': SET.tview = ({ av: 'v', v: 'a', a: 'av' })[SET.tview || 'av']; saveSet(); TL.sy = 0; renderHeads(); updTools(); return TLdraw();
     case 'split': return doSplit(T);
     case 'del': return doDelete(false);
@@ -4242,6 +4544,7 @@ document.addEventListener('keydown', e => {
     case 'c': case 'b': return setTool('blade');
     case 's': return doSplit(T);
     case 't': return setTool('title');
+    case 'u': return setTool('sub');
     case 'm': return addMarker();
     case 'i': return setIO('a');
     case 'o': return setIO('b');
@@ -4295,7 +4598,7 @@ function boot() {
   applySizes();
   const acc = 'video/*,audio/*,image/*,.mmv,' + [...EXTL.video, ...EXTL.audio, ...EXTL.image].map(e => '.' + e).join(','); $('#fimport').accept = acc; $('#fopen').accept = acc;
   buildHeader(); buildPanes(); buildTools(); buildTLBar(); buildTransport();
-  binInit(); viewerInit(); inspInit($('#inspb')); inspInit($('#toolb')); TLinit();
+  binInit(); viewerInit(); subPaneInit($('#toolb')); inspInit($('#inspb')); inspInit($('#toolb')); TLinit();
   CX = $('#cv').getContext('2d');
   if (isStandalone()) $('#btn-install').classList.add('hidden');
   P = newProjectData();
