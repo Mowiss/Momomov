@@ -699,6 +699,7 @@ const IC = {
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
   text: '<path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/>',
   palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/><circle cx="16" cy="10" r="1.3" fill="currentColor"/><path d="M12 21a2.5 2.5 0 0 1 0-5h2a3 3 0 0 0 3-3"/>',
+  person: '<circle cx="12" cy="7" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/><path d="M2.5 3.5v3M2.5 3.5h3M21.5 3.5v3M21.5 3.5h-3"/>',
   cursor: '<path d="m4 4 7 17 2.5-7.5L21 11z"/>',
   blade: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',
   split: '<path d="M12 3v18"/><path d="M8 7H4v10h4"/><path d="M16 7h4v10h-4"/>',
@@ -1872,7 +1873,7 @@ function activeFx(c) { return (c.efx || []).filter(e => e.on !== false && EFMAP[
 function fxPreview(cv, k, lt) {
   const W = cv.width, H = cv.height, d = EFMAP[k]; if (!d) return;
   const def = EFMAP[k] || {}; const e = { k, a: def.a0 ?? 75, c1: def.c10 || '#1e1b4b', c2: '#f472b6' }; for (const p of def.params || []) e[p.k] = p.def;
-  const o = { W, H, k: W / 1920, lt, dur: 3, frame: Math.round(lt * 30), a: e.a / 100, e };
+  const o = { W, H, k: W / 1920, lt, dur: 3, frame: Math.round(lt * 30), a: e.a / 100, e, prev: true };
   const X = { cx: W / 2, cy: H / 2, s: 1, r: 0, fx: 1, fy: 1 };
   if (d.xf) d.xf(X, o);
   const x = efSize(EB, W, H); x.save(); x.translate(X.cx, X.cy); x.rotate(X.r); x.scale(X.s * X.fx, X.s * X.fy); x.drawImage(sample(W, H, d.k === 'keyg' ? 'G' : 'A'), -W / 2, -H / 2, W, H); x.restore();
@@ -1880,8 +1881,6 @@ function fxPreview(cv, k, lt) {
   const c = cv.getContext('2d'); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.filter = 'none'; c.globalCompositeOperation = 'source-over';
   c.fillStyle = '#0b0f17'; c.fillRect(0, 0, W, H); c.drawImage(EB, 0, 0);
 }
-/* position réglable quand aucun point n'est suivi */
-for (const k of ['anonblur', 'anonpix', 'halopt', 'flare', 'bolt']) { const d = EFC.find(e => e.k === k); if (d) d.params = [...(d.params || []), { k: 'px', n: 'Position horizontale (sans suivi)', min: 0, max: 100, def: 50 }, { k: 'py', n: 'Position verticale (sans suivi)', min: 0, max: 100, def: 45 }]; }
 
 /* ==========================================================================
    Édition : insertion, écrasement, découpe, pistes, marqueurs, looks, titres
@@ -2608,6 +2607,81 @@ function trackPane() {
 }
 
 /* ==========================================================================
+   Détourage IA (sans fond vert) : MediaPipe Image Segmenter, gratuit,
+   calculé dans le navigateur (carte graphique si possible). Modèle chargé
+   à la première utilisation puis gardé en cache par le navigateur.
+   ========================================================================== */
+const MPV = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35';
+const AIS_URL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite';
+const AIS_URL2 = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
+const AIS = { seg: null, p: null, fail: false, cache: new Map(), in: document.createElement('canvas'), mk: document.createElement('canvas'), mk2: document.createElement('canvas') };
+const AIK = ['aicut', 'aiblur', 'aicolor'];
+function aiNeeded() { return P && P.clips.some(c => (c.efx || []).some(e => e.on !== false && AIK.includes(e.k))); }
+function aiSegLoad() {
+  if (AIS.seg) return Promise.resolve(AIS.seg); if (AIS.p) return AIS.p;
+  toast('Chargement du détourage IA (une seule fois)…', '', 3000);
+  AIS.p = (async () => {
+    const V = await import(MPV + '/vision_bundle.mjs');
+    const fs = await V.FilesetResolver.forVisionTasks(MPV + '/wasm');
+    const mk = (u, d) => V.ImageSegmenter.createFromOptions(fs, { baseOptions: { modelAssetPath: u, delegate: d }, runningMode: 'IMAGE', outputCategoryMask: false, outputConfidenceMasks: true });
+    const tryM = async u => { try { return await mk(u, window.__AIS_DEL || 'GPU'); } catch (e) { return mk(u, 'CPU'); } };
+    let s; try { s = await tryM(window.__AIS_URL || AIS_URL); } catch (e) { s = await tryM(AIS_URL2); }
+    AIS.seg = s; AIS.cache.clear(); toast('Détourage IA prêt', 'ok'); reqDraw(); return s;
+  })().catch(e => { AIS.p = null; AIS.fail = true; toast('Détourage IA indisponible : ' + (e.message || e), 'err', 6000); throw e; });
+  return AIS.p;
+}
+/* masque « personne » (Float32 0..1) de l'image du clip */
+function aiMaskData(cv, o) {
+  const key = o.c ? o.c.id + '|' + o.frame + '|' + o.W + 'x' + o.H : null;
+  if (key && AIS.cache.has(key)) return AIS.cache.get(key);
+  if (!AIS.seg) { if (!AIS.p && !AIS.fail) aiSegLoad().catch(() => { }); return null; }
+  const sw = Math.min(512, o.W), sh = Math.max(1, Math.round(sw * o.H / o.W));
+  const ix = efSize(AIS.in, sw, sh); ix.fillStyle = '#000'; ix.fillRect(0, 0, sw, sh); ix.drawImage(cv, 0, 0, sw, sh);
+  let out = null;
+  try {
+    AIS.seg.segment(AIS.in, r => {
+      const ms = r.confidenceMasks || []; if (!ms.length) return;
+      const w = ms[0].width, h = ms[0].height, a = ms[0].getAsFloat32Array(), d = new Float32Array(w * h);
+      if (ms.length === 1) d.set(a); else for (let i = 0; i < d.length; i++) d[i] = 1 - a[i]; // multiclasse : 0 = arrière-plan
+      out = { w, h, d };
+    });
+  } catch (e) { console.warn(e); return null; }
+  if (out && key) { AIS.cache.set(key, out); if (AIS.cache.size > 90) AIS.cache.delete(AIS.cache.keys().next().value); }
+  return out;
+}
+/* masque prêt à composer (canvas pleine taille, alpha = personne) */
+function aiMask(cv, o) {
+  let m = aiMaskData(cv, o);
+  if (!m && o.prev) { // aperçu du catalogue : silhouette factice
+    const w = 64, h = 36, d = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const hx = (x - 32) / 7, hy = (y - 12) / 7, bx = (x - 32) / 14, by = (y - 36) / 16; d[y * w + x] = hx * hx + hy * hy < 1 || (bx * bx + by * by < 1) ? 1 : 0; }
+    m = { w, h, d };
+  }
+  if (!m) return null;
+  const th = (o.e.th ?? 50) / 100, sf = Math.max(.02, (o.e.sf ?? 30) / 100 * .5);
+  const x = efSize(AIS.mk, m.w, m.h), id = x.createImageData(m.w, m.h), D = id.data;
+  for (let i = 0, j = 3; i < m.d.length; i++, j += 4) { const v = clamp((m.d[i] - th + sf) / (2 * sf), 0, 1); D[j] = 255 * v * v * (3 - 2 * v); }
+  x.putImageData(id, 0, 0);
+  const y = efSize(AIS.mk2, o.W, o.H); y.clearRect(0, 0, o.W, o.H); y.imageSmoothingQuality = 'high';
+  const fe = (o.e.fe ?? 20) / 100 * 6 * o.k * 2; if (fe > .3) y.filter = `blur(${fe}px)`;
+  y.drawImage(AIS.mk, 0, 0, o.W, o.H); y.filter = 'none';
+  return AIS.mk2;
+}
+const AIP = [{ k: 'th', n: 'Seuil (plus haut = plus serré)', min: 5, max: 95, def: 50 }, { k: 'sf', n: 'Douceur de la limite', min: 0, max: 100, def: 30 }, { k: 'fe', n: 'Flou du contour', min: 0, max: 100, def: 20 }];
+function aiPerson(cv, o) { const mk = aiMask(cv, o); if (!mk) return null; const t = efSize(ET2, o.W, o.H); t.globalCompositeOperation = 'source-over'; t.drawImage(cv, 0, 0); t.globalCompositeOperation = 'destination-in'; t.drawImage(mk, 0, 0); t.globalCompositeOperation = 'source-over'; return ET2; }
+EFC.push(
+  { k: 'aicut', cat: 'Incrustation', n: 'Détourage IA', aN: 'Opacité du fond', a0: 0, params: AIP,
+    f: (x, cv, o) => { const mk = aiMask(cv, o); if (!mk) return; snap(cv, o); x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H);
+      if (o.a > 0) { x.globalAlpha = o.a; x.drawImage(ET, 0, 0); x.globalAlpha = 1; }
+      const t = efSize(ET2, o.W, o.H); t.drawImage(ET, 0, 0); t.globalCompositeOperation = 'destination-in'; t.drawImage(mk, 0, 0); t.globalCompositeOperation = 'source-over'; x.drawImage(ET2, 0, 0); x.restore(); } },
+  { k: 'aiblur', cat: 'Incrustation', n: 'Flou d\'arrière-plan IA', aN: 'Force du flou', a0: 55, params: AIP,
+    f: (x, cv, o) => { snap(cv, o); const pp = aiPerson(ET, o); if (!pp) return; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.filter = `blur(${2 + o.a * 26 * o.k * 2}px)`; x.drawImage(ET, 0, 0); x.filter = 'none'; x.drawImage(pp, 0, 0); x.restore(); } },
+  { k: 'aicolor', cat: 'Incrustation', n: 'Couleur sélective IA', aN: 'Décoloration du fond', a0: 100, params: AIP,
+    f: (x, cv, o) => { snap(cv, o); const pp = aiPerson(ET, o); if (!pp) return; x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, o.W, o.H); x.filter = `grayscale(${o.a}) contrast(${1 + o.a * .1})`; x.drawImage(ET, 0, 0); x.filter = 'none'; x.drawImage(pp, 0, 0); x.restore(); } }
+);
+for (const e of EFC) EFMAP[e.k] = e;
+
+/* ==========================================================================
    Timeline (canvas) : règle, pistes, clips, glisser, rogner, lame, aimant
    ========================================================================== */
 const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: null, hover: null, W: 0, H: 0, dpr: 1 };
@@ -3102,7 +3176,7 @@ const PAL = [
     ['dup', 'dup', 'Dupliquer (Ctrl+D)', 'c-sky'], ['detach', 'detach', 'Détacher le son sur une piste audio', 'c-teal'], ['freeze', 'freeze', 'Arrêt sur image (2 s)', 'c-sky']]],
   ['ajouter', 'Ajouter', [['color', 'palette', 'Couleur unie', 'c-pink'], ['voice', 'mic', 'Enregistrer une voix off', 'c-red'], ['marker', 'marker', 'Marqueur à la tête de lecture (M)', 'c-amber']]],
   ['soustitres', 'Sous-titres', [['tool:sub', 'cc', 'Sous-titres : créer, styler, importer et exporter (U)', 'c-amber'], ['subdetect', 'wave', 'Détecter les phrases : un bloc de sous-titre par phrase parlée', 'c-green'], ['subsync', 'keyb', 'Synchroniser un texte au clavier (karaoké)', 'c-sky']]],
-  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple']]],
+  ['sfx', 'Effets spéciaux', [['tool:track', 'target', 'Suivi de point : cliquer sur un détail de la vidéo pour le suivre (K)', 'c-teal'], ['fxquick:keyg', 'drop', 'Fond vert : rendre transparente la couleur de fond du clip choisi', 'c-green'], ['fxquick:aicut', 'person', 'Détourage IA : garder la personne et retirer le fond, sans fond vert', 'c-pink'], ['fxquick:halopt', 'sun', 'Lumière : halo lumineux sur le clip choisi', 'c-amber'], ['fxquick:bolt', 'bolt', 'Éclair animé sur le clip choisi', 'c-purple']]],
   ['affichage', 'Affichage', [['safe', 'safe', 'Cadre de sécurité dans l\'aperçu', 'c-purple'], ['vfull', 'expand', 'Aperçu en plein écran', 'c-sky'], ['snapshot', 'camera', 'Capturer l\'image sous la tête de lecture (PNG)', 'c-orange']]]
 ];
 function textEditor(c) {
@@ -3883,6 +3957,7 @@ async function startExport(o) {
   pause();
   const a = o.range === 'io' && P.io ? P.io.a : 0, b = o.range === 'io' && P.io ? P.io.b : projDur();
   if (b - a < 0.1) { toast('La zone à exporter est trop courte'); return; }
+  if (aiNeeded()) { try { await aiSegLoad(); } catch (e) { } }
   if (SET.fastExp !== false && fastCapable()) { const r = await fastExport(o, OUTMAP[o.out] || OUTMAP.mp4); if (r !== 'fallback') return; }
   if (!audio()) { toast('Audio indisponible dans ce navigateur', 'err'); return; }
   try { await AC.resume(); } catch (e) { }
@@ -4592,11 +4667,17 @@ const GUIDE = [
     <li>Dans les propriétés du clip, le bloc <b>Effets</b> liste les effets posés : réglez leur intensité, masquez-les temporairement avec l'œil ou retirez-les avec la croix.</li></ul>
     <div class="tip"><b>Astuce :</b> les effets d'ambiance (neige, pluie, confettis, étincelles) se posent aussi sur un titre ou une couleur unie.</div>`],
   ['sfx', 'target', 'Effets spéciaux', `
-    <p class="lead">La famille <b>Effets spéciaux</b> de la palette regroupe le fond vert, le suivi de point et les lumières dynamiques.</p>
+    <p class="lead">La famille <b>Effets spéciaux</b> de la palette regroupe le fond vert, le détourage IA, le suivi de point et les lumières dynamiques.</p>
     <h3>Fond vert</h3>
     <ul><li>Mettez la vidéo tournée sur fond vert sur la piste <b>du dessus</b> (V2) et le nouveau décor sur la piste du dessous (V1).</li>
     <li>Sélectionnez la vidéo et cliquez sur ${gk('drop')} <b>Fond vert</b> : le fond devient transparent.</li>
     <li>Dans le bloc <b>Effets</b> des propriétés, la <b>pipette</b> permet de cliquer sur la couleur exacte du fond dans l'aperçu (vert, bleu ou autre). <b>Tolérance</b> élargit la plage de couleurs retirées, <b>Adoucissement des bords</b> lisse le détourage, <b>Anti-reflets de couleur</b> retire le reflet vert sur les cheveux et la peau.</li></ul>
+    <h3>Détourage IA (sans fond vert)</h3>
+    <ul><li>Sélectionnez une vidéo où apparaît une personne et cliquez sur ${gk('person')} <b>Détourage IA</b> : une intelligence artificielle repère la personne image par image et retire tout le reste. Posez un décor sur la piste du dessous.</li>
+    <li>Dans le catalogue <b>Effets</b> (famille Incrustation), deux variantes : <b>Flou d'arrière-plan IA</b> (effet « mode portrait » d'un téléphone) et <b>Couleur sélective IA</b> (la personne en couleur, le décor en noir et blanc).</li>
+    <li>Réglages : <b>Seuil</b> resserre ou élargit la silhouette, <b>Douceur de la limite</b> et <b>Flou du contour</b> adoucissent les bords. Pour le détourage, <b>Opacité du fond</b> laisse deviner le décor d'origine.</li>
+    <li>Le modèle (environ 16 Mo) se télécharge à la première utilisation, puis reste en mémoire du navigateur. Tout est calculé sur votre ordinateur, gratuitement et sans limite : vos vidéos ne partent nulle part.</li></ul>
+    <div class="tip"><b>Bon à savoir :</b> l'IA est faite pour les personnes (corps, visage, cheveux, vêtements). Pour un objet, ou si vous voulez un détourage parfait des cheveux, le fond vert reste le meilleur choix.</div>
     <h3>Suivi de point</h3>
     <ul><li>Prenez l'outil ${gk('target')} <b>Suivi de point</b> (<kbd>K</kbd>), placez la tête de lecture là où commence le suivi, puis cliquez sur un détail bien contrasté de la vidéo (une main, un logo, un visage).</li>
     <li>MOMOmov suit ce détail image par image jusqu'à la fin du clip. Le trajet s'affiche en pointillés cyan dans l'aperçu.</li>
