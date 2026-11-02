@@ -1474,11 +1474,27 @@ function player(c) {
   if (p) dropPlayer(c.id);
   const el = document.createElement(c.type === 'audio' ? 'audio' : 'video');
   el.preload = 'auto'; el.playsInline = true; el.src = u; el.crossOrigin = 'anonymous';
-  el.addEventListener('seeked', reqDraw); el.addEventListener('loadeddata', reqDraw);
+  el.addEventListener('seeked', () => { p.shown = el.currentTime; if (!PLAY.on && c.type === 'video') scrubKeep(c.mediaId, el); reqDraw(); }); el.addEventListener('loadeddata', reqDraw);
   $('#pool').appendChild(el);
   p = { el, u, mediaId: c.mediaId, kind: c.type, g: null, s: null };
   if (audio()) { try { p.s = AC.createMediaElementSource(el); p.g = AC.createGain(); p.g.gain.value = 0; p.f = mkEq(AC); p.s.connect(p.f.in); p.f.out.connect(p.g); p.g.connect(MASTER); } catch (e) { p.s = p.g = null; } }
   PL.set(c.id, p); return p;
+}
+/* défilement de la tête de lecture : les images déjà vues sont gardées en petit,
+   et pendant qu'une vidéo cherche son image on montre la plus proche connue */
+const SCRUB = new Map(); // mediaId -> Map(clé 1/10 s -> canvas)
+function scrubKeep(mid, el) {
+  if (!el.videoWidth) return; let mp = SCRUB.get(mid); if (!mp) SCRUB.set(mid, mp = new Map());
+  const k = Math.round(el.currentTime * 10); if (mp.has(k)) return;
+  const w = 480, h = Math.max(1, Math.round(w * el.videoHeight / el.videoWidth)), cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  try { cv.getContext('2d').drawImage(el, 0, 0, w, h); } catch (e) { return; }
+  mp.set(k, cv); if (mp.size > 400) mp.delete(mp.keys().next().value);
+}
+function scrubFrame(mid, st, p) {
+  const mp = SCRUB.get(mid), k = Math.round(st * 10);
+  if (mp) for (const d of [0, -1, 1, -2, 2]) { const cv = mp.get(k + d); if (cv) return cv; }
+  if (p && Math.abs((p.shown ?? -9) - st) < .5) return null; // l'image affichée est assez proche
+  const m = M.get(mid); return m && thumbAt(m, st);
 }
 function dropPlayer(id) {
   const p = PL.get(id); if (!p) return;
@@ -1632,7 +1648,11 @@ function drawClip(ctx, c, t) {
 function paintClip(ctx, c, t, X) {
   let src = null;
   if (c.type === 'video' && FRAMESRC.has(c.id)) src = FRAMESRC.get(c.id);
-  else if (c.type === 'video') { const p = PL.get(c.id); if (p && p.el.readyState >= 2) src = p.el; else { const m = M.get(c.mediaId); src = m && thumbAt(m, srcTime(c, t)); } }
+  else if (c.type === 'video') {
+    const p = PL.get(c.id), st = srcTime(c, t);
+    if (p && p.el.readyState >= 2) { src = p.el; if (!PLAY.on && p.el.seeking && Math.abs((p.shown ?? -9) - st) > 1.5 / P.fps) src = scrubFrame(c.mediaId, st, p) || src; }
+    else { const m = M.get(c.mediaId); src = m && (scrubFrame(c.mediaId, st, null) || thumbAt(m, st)); }
+  }
   else if (c.type === 'image') { const m = M.get(c.mediaId); src = m && m.img; }
   if (src && (c.type === 'video' || c.type === 'image') && cgOn(c)) src = gradeSrc(src, c);
   ctx.save();
@@ -5220,7 +5240,7 @@ function pxWanted(md) {
   if (!md || md.kind !== 'video' || SET.proxy === 'off') return false;
   if (SET.proxy === 'on') return Math.max(md.w, md.h) > 960;
   const br = md.dur ? md.size * 8 / md.dur : 0;
-  return md.w * md.h > 1920 * 1088 || br > 30e6;
+  return Math.max(md.w, md.h) > 1280 || br > 30e6;
 }
 const pxName = md => 'p_' + md.id + '_' + md.size + '.mp4';
 async function pxLookup(md) { // aperçu déjà fabriqué lors d'une séance précédente ?
@@ -5447,7 +5467,7 @@ function settingsDialog() {
         <div class="f2"><div class="f"><label>Durée d'une image (s)</label><input type="number" data-s="imgDur" min="0.2" step="0.5" value="${SET.imgDur}"></div>
         <div class="f"><label>Durée d'un titre (s)</label><input type="number" data-s="titleDur" min="0.5" step="0.5" value="${SET.titleDur}"></div></div></div></div>
       <div class="isec"><div class="isec-h">${ic('bolt', '', ' style="color:#fcd34d"')}Mémoire et fluidité</div><div class="isec-b">
-        <div class="f"><label>Aperçus allégés (montage fluide des vidéos lourdes)</label><select id="spx">${[['auto', 'Automatique : vidéos 4K et très lourdes'], ['on', 'Toujours : toutes les vidéos au-delà de 960 px'], ['off', 'Jamais : toujours les originaux']].map(([v, n]) => `<option value="${v}"${(SET.proxy || 'auto') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
+        <div class="f"><label>Aperçus allégés (montage fluide des vidéos lourdes)</label><select id="spx">${[['auto', 'Automatique : vidéos Full HD et plus (recommandé)'], ['on', 'Toujours : toutes les vidéos au-delà de 960 px'], ['off', 'Jamais : toujours les originaux']].map(([v, n]) => `<option value="${v}"${(SET.proxy || 'auto') === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>
         <div class="ihint" style="text-align:left;padding:2px 2px 8px">L'aperçu utilise une copie légère ; l'export se fait toujours à partir des originaux, en pleine qualité.</div>
         <div id="smem"><div class="ihint">Calcul…</div></div>
         <div class="ibtns"><button class="ibtn" id="sfree">${ic('bolt')}Libérer la mémoire</button><button class="ibtn" id="spxc" style="color:#fca5a5">${ic('trash')}Effacer les aperçus allégés</button></div></div></div>
@@ -5695,7 +5715,7 @@ const GUIDE = [
   ['memoire', 'bolt', 'Mémoire et fluidité', `
     <p class="lead">MOMOmov est conçu pour tenir des projets longs et des vidéos lourdes (4K de téléphone, par exemple) sans saturer l'ordinateur.</p>
     <ul><li><b>Les vidéos restent sur le disque.</b> Les fichiers importés sont lus directement là où ils sont ; ceux que MOMOmov fabrique (conversions, voix off, DVD, projets ouverts) sont rangés dans un dossier privé du navigateur au lieu d'occuper la mémoire vive.</li>
-    <li><b>Aperçus allégés.</b> Pour une vidéo 4K ou très lourde, MOMOmov fabrique en arrière-plan une copie légère (960 px) : la lecture et le déplacement dans la timeline deviennent fluides. Le badge vert <b>ALLÉGÉ</b> apparaît sur la vignette dans la médiathèque. L'export, lui, utilise toujours les originaux en pleine qualité. Les aperçus sont gardés d'une séance à l'autre, puis effacés après 45 jours sans servir.</li>
+    <li><b>Aperçus allégés.</b> Pour une vidéo Full HD, 4K ou très lourde, MOMOmov fabrique en arrière-plan une copie légère (960 px) : la lecture et le défilement de la tête de lecture deviennent fluides (chaque image de la copie se retrouve instantanément). Pendant que vous faites défiler, les images déjà vues sont gardées en mémoire et réapparaissent tout de suite. Le badge vert <b>ALLÉGÉ</b> apparaît sur la vignette dans la médiathèque. L'export, lui, utilise toujours les originaux en pleine qualité. Les aperçus sont gardés d'une séance à l'autre, puis effacés après 45 jours sans servir.</li>
     <li><b>Le son est lu par morceaux</b> : forme d'onde et mixage d'export ne chargent jamais un film entier en mémoire.</li>
     <li><b>L'export s'écrit sur le disque</b> au fur et à mesure, et l'enregistrement du projet (.mmv) assemble les fichiers sans les recopier en mémoire. Les projets de plus de 4 Go sont pris en charge.</li></ul>
     <h3>Dans les Paramètres</h3>
