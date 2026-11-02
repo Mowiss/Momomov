@@ -1582,7 +1582,7 @@ function textBox(c) {
   return { lines, w: w + pad * 2, h: lines.length * x.size * x.lh + pad * 2, pad, lw: w };
 }
 function baseSize(c) {
-  if (c.type === 'color') return { w: P.w, h: P.h };
+  if (c.type === 'color' || c.type === 'fx') return { w: P.w, h: P.h };
   if (c.type === 'text') { const b = textBox(c); return { w: b.w, h: b.h, tb: b }; }
   const md = media(c.mediaId); if (!md || !md.w) return { w: P.w, h: P.h };
   const f = Math.min(P.w / md.w, P.h / md.h); return { w: md.w * f, h: md.h * f };
@@ -1606,6 +1606,18 @@ function activeVisuals(t) {
     for (const c of P.clips) if (c.track === tr.id && t >= c.start - EPS && t < cEnd(c) - EPS) out.push(c);
   }
   return out;
+}
+/* calque d'effet : s'applique à tout ce qui est en dessous, le temps du clip */
+function drawFxClip(ctx, c, t) {
+  const ef = activeFx(c); if (!ef.length) return;
+  const W = P.w, H = P.h, cv = ctx.canvas, tg = c.follow ? clipById(c.follow) : null;
+  const o = { W, H, k: W / 1920, lt: t - c.start, dur: c.dur, frame: Math.round(t * P.fps), c: tg || c, t, fxc: c };
+  const X = { cx: W / 2, cy: H / 2, r: 0, s: 1, fx: 1, fy: 1 };
+  for (const e of ef) if (EFMAP[e.k].xf) { o.a = e.a / 100; o.e = e; EFMAP[e.k].xf(X, o); }
+  const x = efSize(EB, W, H); x.save(); x.translate(X.cx, X.cy); x.rotate(X.r); x.scale(X.s * X.fx, X.s * X.fy); x.drawImage(cv, -W / 2, -H / 2, W, H); x.restore();
+  for (const e of ef) if (EFMAP[e.k].f) { o.a = e.a / 100; o.e = e; EFMAP[e.k].f(x, EB, o); }
+  const op = clamp(c.op ?? 1, 0, 1);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.filter = 'none'; ctx.globalAlpha = op; ctx.globalCompositeOperation = op >= 1 ? 'copy' : 'source-over'; ctx.drawImage(EB, 0, 0, cv.width, cv.height); ctx.restore();
 }
 function drawClip(ctx, c, t) {
   const X = clipXform(c, t, trState());
@@ -1652,6 +1664,7 @@ function drawLayer(ctx, tr, t) {
   }
   for (const c of cl) {
     if (!(t >= c.start - EPS && t < cEnd(c) - EPS)) continue;
+    if (c.type === 'fx') { drawFxClip(ctx, c, t); return; }
     const both = c.trIn.t !== 'none' && c.trOut.t !== 'none';
     if (c.trIn.t !== 'none' && !crossIn(c)) { const d = Math.min(c.trIn.d, both ? c.dur / 2 : c.dur); if (t - c.start < d) { drawClip(bufCtx(BUFB), c, t); renderTrans(ctx, c.trIn.t, null, BUFB, (t - c.start) / d); return; } }
     if (c.trOut.t !== 'none' && !crossOut(c)) { const d = Math.min(c.trOut.d, both ? c.dur / 2 : c.dur); if (cEnd(c) - t < d) { drawClip(bufCtx(BUFA), c, t); renderTrans(ctx, c.trOut.t, BUFA, null, (t - cEnd(c) + d) / d); return; } }
@@ -2371,7 +2384,7 @@ function transToSel(k, side) {
 function addEffect(c, k) { if (!isVisual(c) || !EFMAP[k]) return; const d = EFMAP[k], e = { id: uid(), k, a: d.a0 ?? 70, on: true, c1: d.c10 || '#1e1b4b', c2: '#f472b6' }; for (const p of d.params || []) e[p.k] = p.def; c.efx = c.efx || []; c.efx.push(e); return e; }
 function fxToSel(k) {
   const list = selClips().filter(isVisual);
-  if (!list.length) { toast('Glissez l\'effet sur un clip de la timeline, ou sélectionnez un clip'); return; }
+  if (!list.length) { if (CLIPFX.includes(k)) { toast('Glissez cet effet sur un clip de la timeline, ou sélectionnez un clip'); return; } fxQuick(k); return; }
   act(() => { for (const c of list) addEffect(c, k); });
   toast(`${efName(k)} ajouté`, 'ok');
 }
@@ -2888,7 +2901,7 @@ function attachText() {
   act(() => { const tr = findTrack('v', s, e); const t = mkClip('text', { track: tr.id, start: fsnap(s), dur: Math.max(.5, fsnap(e - s)), follow: c.id, y: Math.round(-90 * sc), name: 'Texte suivi', txt: Object.assign(TXT0(), { s: 'Texte', size: Math.round(64 * sc), stroke: Math.round(4 * sc), strokeC: '#000000' }) }); P.clips.push(t); resolve([t]); SEL = new Set([t.id]); });
   showPane('tool'); setTool('sel'); setTimeout(() => { const ta = $('#toolb textarea'); if (ta) { ta.focus(); ta.select(); } }, 60);
 }
-function attachFx(k) { const c = trkTarget(); if (!c) return; act(() => addEffect(c, k)); toast(efName(k) + ' accroché au point suivi', 'ok'); }
+function attachFx(k) { const c = trkTarget(); if (!c) return; const s = c.start + c.trk.pts[0].t, e = c.start + c.trk.pts[c.trk.pts.length - 1].t; act(() => fxLayer(k, { above: c, follow: c.id, start: s, dur: Math.max(.5, e - s) })); showPane('tool'); refreshAll(); toast(efName(k) + ' : calque accroché au point suivi, posé dans la timeline', 'ok'); }
 function clearTrack() { const c = trkTarget(); if (!c) return; act(() => { delete c.trk; for (const o of P.clips) if (o.follow === c.id) delete o.follow; }); }
 function trackPane() {
   const c = trkSrc();
@@ -2928,7 +2941,7 @@ function aiSegLoad() {
 }
 /* masque « personne » (Float32 0..1) de l'image du clip */
 function aiMaskData(cv, o) {
-  const key = o.c ? o.c.id + '|' + o.frame + '|' + o.W + 'x' + o.H : null;
+  const key = o.c ? (o.fxc || o.c).id + '|' + o.frame + '|' + o.W + 'x' + o.H : null;
   if (key && AIS.cache.has(key)) return AIS.cache.get(key);
   if (!AIS.seg) { if (!AIS.p && !AIS.fail) aiSegLoad().catch(() => { }); return null; }
   const sw = Math.min(512, o.W), sh = Math.max(1, Math.round(sw * o.H / o.W));
@@ -3107,6 +3120,30 @@ EFC.push(
 );
 for (const e of EFC) EFMAP[e.k] = e;
 if (!EFCATS.includes('Feu et magie')) EFCATS.splice(EFCATS.indexOf('Lumières') + 1 || EFCATS.length, 0, 'Feu et magie');
+/* ---------- Calques d'effet : un effet = un bloc dans la timeline ---------- */
+const CLIPFX = ['keyg', 'aicut', 'aiblur', 'aicolor']; // effets qui ne vont que sur le clip lui-même
+const FXDUR = { explo: 3, bolt: 2, flare: 4, fire: 5, magic: 4 };
+function fxLayer(k, o = {}) {
+  const s = fsnap(Math.max(0, o.start ?? T)), d = Math.max(1 / P.fps, fsnap(o.dur ?? FXDUR[k] ?? 4)), e = s + d;
+  let tr = null; const tg = o.above;
+  if (tg) { const ti = P.tracks.findIndex(x => x.id === tg.track); tr = P.tracks.slice(0, ti).reverse().find(x => x.kind === 'v' && !x.lock && trackFree(x, s, e)); if (!tr) { tr = { id: 'v' + uid(), kind: 'v' }; P.tracks.splice(ti, 0, tr); } }
+  else if (o.track) tr = trackById(o.track);
+  if (!tr) { const top = P.tracks.find(x => x.kind === 'v'); tr = top && !top.lock && trackFree(top, s, e) && !P.clips.some(c => c.track === top.id && c.type !== 'fx' && c.start < e && cEnd(c) > s) ? top : addTrack('v'); }
+  const c = mkClip('fx', { track: tr.id, start: s, dur: d, name: efName(k), follow: o.follow || undefined });
+  const ef = addEffect(c, k); if (k === 'explo' && ef) ef.td = 0;
+  P.clips.push(c); SEL = new Set([c.id]); return c;
+}
+function underPlayhead() { return P.clips.filter(x => isVisual(x) && x.type !== 'fx' && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; }
+function fxQuick(k) {
+  if (CLIPFX.includes(k)) {
+    const c = selClips().find(x => isVisual(x) && x.type !== 'fx') || underPlayhead(); if (!c) { toast('Sélectionnez un clip'); return; }
+    act(() => addEffect(c, k)); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(k) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return;
+  }
+  const sel = selClips().find(x => x.type !== 'fx' && isVisual(x)), base = sel && T >= sel.start && T < cEnd(sel) ? sel : underPlayhead();
+  const tk = base && base.type === 'video' && base.trk ? base : null;
+  act(() => fxLayer(k, { above: base, follow: tk ? tk.id : null })); showPane('insp'); refreshAll();
+  toast(`${efName(k)} : calque posé dans la timeline à la tête de lecture${tk ? ', accroché au point suivi' : ''} — rognez-le pour régler sa durée`, 'ok', 5000);
+}
 
 /* ==========================================================================
    Son : égaliseur, baisse automatique sous les voix, normalisation,
@@ -3263,7 +3300,7 @@ const TL = { z: 60, sx: 0, sy: 0, tool: 'sel', drag: null, ghost: null, snapX: n
 const RH = 26;
 const trH = tr => tr.kind === 'v' ? 62 : tr.kind === 's' ? 40 : 50;
 const COL = {
-  sub: ['#4a3c0a', '#facc15'], video: ['#2c4396', '#4f7cff'], image: ['#4b3a91', '#a78bfa'], text: ['#7a4e12', '#f59e0b'], color: ['#7a2152', '#ec4899'], audio: ['#0d5c45', '#10b981']
+  sub: ['#4a3c0a', '#facc15'], video: ['#2c4396', '#4f7cff'], image: ['#4b3a91', '#a78bfa'], text: ['#7a4e12', '#f59e0b'], color: ['#7a2152', '#ec4899'], audio: ['#0d5c45', '#10b981'], fx: ['#7a3410', '#f97316']
 };
 let TLC = null, TLX = null;
 function tAt(x) { return TL.sx + x / TL.z; }
@@ -3519,7 +3556,9 @@ function TLinit() {
     const types = [...e.dataTransfer.types];
     if (types.includes('application/x-momomov-fx')) {
       e.preventDefault(); e.stopPropagation(); const { x, y } = TLlocal(e); const c = clipAt(x, y);
-      TL.fghost = c && isVisual(c) && !lockedClip(c) ? c : null; e.dataTransfer.dropEffect = TL.fghost ? 'copy' : 'none'; TLdraw(); return;
+      TL.fghost = c && isVisual(c) && !lockedClip(c) ? c : null; TL.ghost = null;
+      if (!c && !CLIPFX.includes(DRAGFX)) { const tr = trackAtY(y); if (!tr || tr.kind === 'v') TL.ghost = { t: fsnap(Math.max(0, tAt(x))), track: tr ? tr.id : null, dur: FXDUR[DRAGFX] ?? 4, name: 'Calque d\'effet', fx: true }; }
+      e.dataTransfer.dropEffect = TL.fghost || TL.ghost ? 'copy' : 'none'; TLdraw(); return;
     }
     if (types.includes('application/x-momomov-trans')) {
       e.preventDefault(); e.stopPropagation(); const { x, y } = TLlocal(e); const c = clipAt(x, y);
@@ -3540,7 +3579,7 @@ function TLinit() {
   wrap.addEventListener('drop', e => {
     e.preventDefault(); e.stopPropagation(); $('#dropzone').classList.add('hidden');
     const fk = e.dataTransfer.getData('application/x-momomov-fx') || DRAGFX;
-    if (fk) { const c = TL.fghost; TL.fghost = null; DRAGFX = null; if (c) { act(() => addEffect(c, fk)); SEL = new Set([c.id]); refreshAll(); toast(efName(fk) + ' ajouté', 'ok'); } TLdraw(); return; }
+    if (fk) { const c = TL.fghost, gh = TL.ghost; TL.fghost = null; TL.ghost = null; DRAGFX = null; if (!c && gh && gh.fx) { act(() => fxLayer(fk, { start: gh.t, track: gh.track && trackFree(trackById(gh.track), gh.t, gh.t + gh.dur) ? gh.track : null })); showPane('insp'); refreshAll(); toast(efName(fk) + ' : calque d\'effet posé', 'ok'); TLdraw(); return; } if (c) { act(() => addEffect(c, fk)); SEL = new Set([c.id]); refreshAll(); toast(efName(fk) + ' ajouté', 'ok'); } TLdraw(); return; }
     const tk = e.dataTransfer.getData('application/x-momomov-trans') || DRAGTRANS;
     if (tk) { const g = TL.tghost; TL.tghost = null; DRAGTRANS = null; if (g) { act(() => applyTrans(g.c, g.side, tk)); SEL = new Set([g.c.id]); refreshAll(); toast(trName(tk) + ' posée', 'ok'); } TLdraw(); return; }
     const g = TL.ghost; TL.ghost = null;
@@ -3686,7 +3725,7 @@ function trackMenu(x, y, tr, t) {
 /* ==========================================================================
    Interface : en-tête, palette, médiathèque, aperçu, transport, inspecteur
    ========================================================================== */
-const KTYPE = { sub: ['Sous-titre', 'cc', '#facc15'], video: ['Vidéo', 'film', '#4f7cff'], image: ['Image', 'image', '#a78bfa'], text: ['Texte', 'text', '#f59e0b'], color: ['Couleur', 'palette', '#ec4899'], audio: ['Son', 'music', '#10b981'] };
+const KTYPE = { sub: ['Sous-titre', 'cc', '#facc15'], video: ['Vidéo', 'film', '#4f7cff'], image: ['Image', 'image', '#a78bfa'], text: ['Texte', 'text', '#f59e0b'], color: ['Couleur', 'palette', '#ec4899'], audio: ['Son', 'music', '#10b981'], fx: ['Calque d\'effet', 'fx', '#f97316'] };
 const chevSVG = () => `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
 const kb = k => `<kbd>${k}</kbd>`;
 const mb = (actn, label, k = '', icn = '') => `<button data-act="${actn}"><span class="mi">${icn ? ic(icn) : ''}${label}</span>${k ? kb(k) : ''}</button>`;
@@ -4013,7 +4052,7 @@ function fitViewer() {
 }
 function overlayClip() {
   const act = activeVisuals(T);
-  for (let i = act.length - 1; i >= 0; i--) if (SEL.has(act[i].id)) return act[i];
+  for (let i = act.length - 1; i >= 0; i--) if (SEL.has(act[i].id) && act[i].type !== 'fx') return act[i];
   return null;
 }
 let OVLH = '', VDRAG = null;
@@ -4049,7 +4088,7 @@ function vpt(e) { const r = $('#cv').getBoundingClientRect(); return { x: (e.cli
 function hitClip(p) {
   const list = activeVisuals(T);
   for (let i = list.length - 1; i >= 0; i--) {
-    const c = list[i]; if (lockedClip(c)) continue;
+    const c = list[i]; if (lockedClip(c) || c.type === 'fx') continue;
     const X = clipXform(c, T, trState(c, T)); const dx = p.x - X.cx, dy = p.y - X.cy, cs = Math.cos(-X.r), sn = Math.sin(-X.r);
     const lx = (dx * cs - dy * sn) / X.s, ly = (dx * sn + dy * cs) / X.s;
     if (Math.abs(lx) <= X.w / 2 && Math.abs(ly) <= X.h / 2) return c;
@@ -4161,7 +4200,10 @@ function refreshInsp() {
   if (c.type === 'sub') h += sec('subtxt', 'Texte du sous-titre', 'cc', '#facc15', `<div class="f"><textarea data-k="text" rows="3">${esc(c.text || '')}</textarea></div><div class="ibtns"><button class="ibtn wide" data-act="tool:sub">${ic('cc')}Style et liste des sous-titres</button></div>`);
   if (c.type === 'color') h += sec('color', 'Couleur unie', 'palette', '#ec4899', `<div class="f fc"><input type="color" data-k="color" value="${c.color}"><span style="color:var(--g400)">${c.color}</span></div>
     <div class="chips" style="grid-template-columns:repeat(8,1fr)">${['#000000', '#ffffff', '#363c98', '#111827', '#b91c1c', '#059669', '#f59e0b', '#ec4899'].map(k => `<button class="chip" data-do="col:${k}" title="${k}"><i style="background:${k};height:18px;border:1px solid #fff3"></i></button>`).join('')}</div>`);
-  if (vis) {
+  if (c.type === 'fx') h += sec('fxl', 'Calque d\'effet', 'fx', '#f97316', `<div class="ihint" style="text-align:left">Les effets de ce calque s'appliquent à tout ce qui est en dessous, seulement pendant sa durée. Rognez-le ou déplacez-le dans la timeline.</div>
+      ${sl('op', 'Mélange avec l\'image d\'origine', 0, 100, 1, c.op ?? 1, { mul: 100, fmt: pct })}
+      ${c.follow && clipById(c.follow) ? `<div class="kfnav"><span>${ic('target')} Suit le point de « ${esc(clipById(c.follow).name || 'vidéo')} »</span><button class="ibtn" data-do="unfollow">Détacher</button></div>` : ''}`);
+  if (vis && c.type !== 'fx') {
     h += sec('frame', 'Cadre', 'frame', '#60a5fa', `
       <div class="f2">${sl('x', 'Position X', -P.w, P.w, 1, pv(c, 'x', T), { u: '', kf: c })}${sl('y', 'Position Y', -P.h, P.h, 1, pv(c, 'y', T), { u: '', kf: c })}</div>
       ${sl('sc', 'Échelle', 2, 400, 1, pv(c, 'sc', T), { mul: 100, fmt: pct, kf: c })}
@@ -4189,11 +4231,11 @@ function refreshInsp() {
     h += sec('efx', `Effets${ef.length ? ' · ' + ef.length : ''}`, 'fx', '#a78bfa', ef.map((e, i) => { const d = EFMAP[e.k] || {}; return `<div class="efrow${e.on === false ? ' off' : ''}"><span class="efn">${esc(efName(e.k))}</span><button data-efon="${i}" title="${e.on === false ? 'Activer' : 'Désactiver'}">${ic(e.on === false ? 'eyeoff' : 'eye')}</button><button data-efdel="${i}" title="Retirer">${ic('x')}</button></div>
       ${d.col1 ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || d.c10}"><span style="flex:1;font-size:12px;color:var(--g400)">${d.col1}</span>${d.pick ? `<button class="ibtn" data-efpick="${i}" title="Cliquer ensuite sur la couleur dans l'aperçu">${ic('target')}Pipette</button>` : ''}</div>` : ''}
       ${d.sl === false ? '' : `<div class="f"><label>${d.aN || 'Intensité'}<b data-efv="${i}">${e.a} %</b></label><input type="range" data-efa="${i}" min="0" max="100" step="1" value="${e.a}"></div>`}
-      ${(d.params || []).filter(p => !(c.trk && (p.k === 'px' || p.k === 'py'))).map(p => `<div class="f"><label>${p.n}<b data-efpv="${i}:${p.k}">${e[p.k] ?? p.def}</b></label><input type="range" data-efp="${i}:${p.k}" min="${p.min}" max="${p.max}" step="${p.st || 1}" value="${e[p.k] ?? p.def}"></div>`).join('')}
+      ${(d.params || []).filter(p => !((c.trk || c.follow) && (p.k === 'px' || p.k === 'py'))).map(p => `<div class="f"><label>${p.n}<b data-efpv="${i}:${p.k}">${e[p.k] ?? p.def}</b></label><input type="range" data-efp="${i}:${p.k}" min="${p.min}" max="${p.max}" step="${p.st || 1}" value="${e[p.k] ?? p.def}"></div>`).join('')}
       ${d.cols ? `<div class="f fc"><input type="color" data-efc="${i}:c1" value="${e.c1 || '#1e1b4b'}" title="Couleur des ombres"><input type="color" data-efc="${i}:c2" value="${e.c2 || '#f472b6'}" title="Couleur des lumières"></div>` : ''}`; }).join('') +
       `<div class="ibtns"><button class="ibtn wide" data-act="pane:fx">${ic('fx')}Catalogue des effets</button></div>`);
   }
-  if (vis) {
+  if (vis && c.type !== 'fx') {
     const opts = cur => `<option value="none"${cur === 'none' ? ' selected' : ''}>Aucune</option>` + TRCATS.map(cat => `<optgroup label="${cat}">${TRC.filter(t => t.cat === cat).map(t => `<option value="${t.k}"${t.k === cur ? ' selected' : ''}>${t.n}</option>`).join('')}</optgroup>`).join('');
     const pa = adjPrev(c), nb = adjNext(c);
     const row = (side, tr, other) => `<div class="isub" style="display:flex;justify-content:space-between">${side === 'in' ? 'Entrée' : 'Sortie'}<span style="text-transform:none;letter-spacing:0;font-weight:500">${other ? '↔ ' + esc(other.name || 'clip') : side === 'in' ? 'apparition' : 'disparition'}</span></div>
@@ -5555,6 +5597,9 @@ const GUIDE = [
     <li>Le suivi tient les changements de lumière, les mouvements rapides et le détail brièvement caché (une main qui passe devant) : il devine la trajectoire pendant environ une seconde et demie puis raccroche. S'il s'arrête quand même (détail sorti de l'image, trop longtemps caché, ou qui tourne ou change beaucoup de taille), un message donne le moment : placez-y la tête de lecture et recliquez sur le détail, le suivi reprend à partir de là.</li>
     <li>Dans le volet <b>Outil en cours</b>, <b>accrochez au point</b> : un <b>texte</b> qui suit le détail, un <b>flou</b> ou des <b>pixels</b> pour anonymiser un visage ou une plaque, un <b>halo</b>, un <b>reflet</b> (lens flare) ou un <b>éclair</b>.</li>
     <li>Un texte accroché garde son décalage : déplacez-le dans l'aperçu pour le placer au-dessus du détail. « Détacher » dans ses propriétés le libère.</li></ul>
+    <h3>Des calques d'effet dans la timeline</h3>
+    <p>Le feu, les explosions, les lumières, la magie (et tout effet cliqué dans le catalogue sans clip sélectionné) se posent comme un <b>calque d'effet</b> : un bloc orange dans la timeline, sur une piste au-dessus de vos images, qui commence à la tête de lecture. L'effet n'existe que pendant ce bloc : <b>rognez-le</b> pour régler sa durée, <b>déplacez-le</b> pour changer son moment, coupez-le à la lame, supprimez-le comme un clip. Il s'applique à tout ce qui est en dessous (un Flou ou un VHS sur un calque floute ou vieillit toute l'image pendant sa durée).</p>
+    <p>Vous pouvez aussi glisser un effet du catalogue sur un endroit vide de la timeline. Déposé sur un clip, il s'ajoute au clip lui-même, pour toute sa durée. Le fond vert et les effets IA vont toujours sur le clip.</p>
     <h3>Feu et magie</h3>
     <ul><li><b>Feu</b> : des flammes posées où vous voulez (réglage de position) ou sur un point suivi : une main en feu, une torche, un logo qui brûle. Hauteur des flammes, largeur du foyer (mettez-la au maximum et la position en bas pour un mur de feu), vent et fumée se règlent.</li>
     <li><b>Explosion</b> : flash, boule de feu, onde de choc, éclats puis fumée. Le bouton de la palette la place à la tête de lecture ; le réglage <b>Moment</b> la décale ensuite.</li>
@@ -6016,7 +6061,7 @@ function doAct(a) {
     case 'trktext': return attachText();
     case 'addbg': return addBackground();
     case 'trkfx': return attachFx(v);
-    case 'fxquick': { const c = selClips().find(x => isVisual(x)) || P.clips.filter(x => isVisual(x) && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0]; if (!c) { toast('Sélectionnez un clip'); return; } act(() => { const e = addEffect(c, v); if (v === 'explo' && e) e.td = +Math.max(0, T - c.start).toFixed(1); }); SEL = new Set([c.id]); showPane('insp'); refreshAll(); toast(efName(v) + ' ajouté à « ' + (c.name || 'clip') + ' »', 'ok'); return; }
+    case 'fxquick': return fxQuick(v);
     case 'dvd': return openDvd();
     case 'subdetect': return subDetect();
     case 'subwhisper': return wDialog();
