@@ -570,8 +570,8 @@ setTimeout(done,5600);
 <div id="toasts"></div>
 <div id="ctx" class="hidden"></div>
 <div id="dropzone" class="hidden"></div>
-<input type="file" id="fimport" multiple accept="video/*,audio/*,image/*,.mmv,.mkv,.mov" class="hidden">
-<input type="file" id="fopen" accept=".mmv,video/*,audio/*,image/*" class="hidden">
+<input type="file" id="fimport" multiple accept="video/*,audio/*,image/*,.mmv" class="hidden">
+<input type="file" id="fopen" accept="video/*,audio/*,image/*,.mmv" class="hidden">
 
 <script>
 'use strict';
@@ -815,11 +815,12 @@ function audio() {
 }
 
 /* ---------- Import des médias ---------- */
-const EXT = {
-  video: /\.(mp4|m4v|webm|mov|mkv|ogv|avi|3gp)$/i,
-  audio: /\.(mp3|wav|ogg|oga|m4a|aac|flac|opus|weba)$/i,
-  image: /\.(png|jpe?g|webp|gif|bmp|svg|avif)$/i
+const EXTL = {
+  video: 'mp4 m4v mov qt mkv webm avi wmv asf flv f4v mpg mpeg mpe m1v m2v mp2v vob ts mts m2ts m2t tod mod 3gp 3g2 ogv ogm dv dif mxf rm rmvb divx xvid hevc h264 h265 264 265 y4m nut ivf amv mjpeg mjpg nsv vro wtv dvr-ms gxf roq'.split(' '),
+  audio: 'mp3 wav wave bwf aif aiff aifc flac ogg oga opus m4a m4b m4r aac adts ac3 eac3 ec3 dts wma amr awb ape wv mka mp2 mpa mp1 au snd caf tta voc spx weba mid gsm ra 3ga oma w64 rf64 dsf dff mlp thd'.split(' '),
+  image: 'png apng jpg jpeg jfif jpe pjpeg webp gif bmp dib svg avif ico cur tif tiff tga psd ppm pgm pbm pnm pam pcx exr hdr jp2 j2k jxl dds qoi sgi rgb ras xbm xpm xwd heic heif'.split(' ')
 };
+const EXT = Object.fromEntries(Object.entries(EXTL).map(([k, l]) => [k, new RegExp('\\.(' + l.join('|').replace(/-/g, '\\-') + ')$', 'i')]));
 function kindOf(f) {
   const t = (f.type || '').split('/')[0];
   if (t === 'video' || t === 'audio' || t === 'image') return t;
@@ -854,9 +855,14 @@ async function addMedia(blob, name, opts = {}) {
   const kind = opts.kind || kindOf({ type: blob.type, name });
   if (!kind) { toast(`« ${name} » : type de fichier non reconnu`, 'err'); return null; }
   const url = URL.createObjectURL(blob);
-  let meta;
-  try { meta = await loadMeta(url, kind); }
-  catch (e) { URL.revokeObjectURL(url); toast(`« ${name} » ne peut pas être lu par le navigateur`, 'err', 4200); return null; }
+  let meta = null;
+  try { meta = await loadMeta(url, kind); if (kind === 'video' && !(meta.w > 0)) meta = null; } catch (e) { meta = null; }
+  if (!meta) {
+    URL.revokeObjectURL(url);
+    if (opts.converted) { toast(`« ${name} » ne peut pas être lu`, 'err', 4200); return null; }
+    const cv = await convertForEdit(blob, name, kind); if (!cv) return null;
+    return addMedia(cv.blob, cv.name, Object.assign({}, opts, { kind, converted: true }));
+  }
   const id = opts.id || uid();
   const md = { id, name, kind, mime: blob.type || '', size: blob.size, dur: kind === 'image' ? 0 : meta.dur, w: meta.w || (kind === 'audio' ? 0 : 1280), h: meta.h || (kind === 'audio' ? 0 : 720), hasAudio: kind === 'image' ? false : (opts.hasAudio ?? true) };
   M.set(id, { blob, url, img: meta.img || null, thumbs: [], peaks: null, pps: 50, ready: false });
@@ -2986,22 +2992,27 @@ async function startExport(o) {
   const { w, h } = exportDims(o.res);
   const ec = document.createElement('canvas'); ec.width = w; ec.height = h; const ex = ec.getContext('2d');
   const ad = AC.createMediaStreamDestination(); MASTER.connect(ad);
+  const OF = OUTMAP[o.out] || OUTMAP.mp4, audioOnly = !!OF.a;
+  const nat = nativeOut(OF);
   let mime, vs = null;
-  if (o.audioOnly) mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(m => MediaRecorder.isTypeSupported(m));
-  else { mime = pickMime(o.fmt); vs = ec.captureStream(P.fps); }
+  if (nat) mime = nat;
+  else if (audioOnly) mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => MediaRecorder.isTypeSupported(m));
+  else mime = pickMime('webm') || pickMime('mp4');
+  if (!audioOnly) vs = ec.captureStream(P.fps);
+  if (!mime) { MASTER.disconnect(ad); toast('Enregistrement impossible dans ce navigateur', 'err'); return; }
   const ms = new MediaStream([...(vs ? vs.getVideoTracks() : []), ...ad.stream.getAudioTracks()]);
-  const qf = { std: 0.07, high: 0.12, max: 0.2 }[o.q] || 0.12;
+  const qf = nat ? ({ std: 0.07, high: 0.12, max: 0.2 }[o.q] || 0.12) : 0.25; // intermédiaire de haute qualité avant conversion
   let rec;
-  try { rec = new MediaRecorder(ms, { mimeType: mime, videoBitsPerSecond: Math.round(w * h * P.fps * qf), audioBitsPerSecond: 192000 }); }
+  try { rec = new MediaRecorder(ms, { mimeType: mime, videoBitsPerSecond: Math.round(w * h * P.fps * qf), audioBitsPerSecond: nat ? 192000 : 320000 }); }
   catch (e) { MASTER.disconnect(ad); toast('Format d\'export refusé par le navigateur', 'err'); return; }
   const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-  const ext = o.audioOnly ? (mime.includes('mp4') ? '.m4a' : '.weba') : (mime.includes('mp4') ? '.mp4' : '.webm');
+  const ext = '.' + OF.ext;
   if (o.mute) OUT.gain.value = 0;
   // fenêtre de progression
-  const md = modal(`<div class="mh">${ic(o.audioOnly ? 'music' : 'exportv')}Export en cours</div>
+  const md = modal(`<div class="mh">${ic(audioOnly ? 'music' : 'exportv')}Export ${esc(OF.n)} en cours</div>
     <div class="mb"><p style="margin:0 0 10px;color:var(--g300)">Le montage est lu du début à la fin et enregistré au fur et à mesure. <b style="color:#fff">Gardez cet onglet affiché</b> jusqu'à la fin.</p>
     <div class="prog"><i id="exprog"></i></div><div style="display:flex;justify-content:space-between;margin-top:8px;font:12px ui-monospace,monospace;color:var(--g400)"><span id="extime">${tc(0)} / ${tc(b - a)}</span><span id="expct">0 %</span></div>
-    <div style="margin-top:10px;font-size:12px;color:var(--g500)">${w}×${h} · ${P.fps} i/s · ${ext.slice(1).toUpperCase()}</div></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--g500)">${audioOnly ? 'Son seul' : `${w}×${h} · ${P.fps} i/s`} · ${esc(OF.n)}${nat ? '' : ' · étape 1/2 : enregistrement, puis conversion'}</div></div>
     <div class="mf"><button class="btn red" id="excancel">${ic('x')}Annuler</button></div>`, { lock: true });
   T = a; await primeAt(a, 5000);
   const finish = async () => {
@@ -3011,7 +3022,12 @@ async function startExport(o) {
     document.removeEventListener('visibilitychange', vis);
     md.close();
     if (E.cancelled) { toast('Export annulé'); return; }
-    const blob = new Blob(chunks, { type: mime.split(';')[0] });
+    let blob = new Blob(chunks, { type: mime.split(';')[0] });
+    if (!nat) {
+      const box = ffBox(`Conversion en ${OF.n}`);
+      try { blob = await ffRun(blob, mime.includes('mp4') ? 'mp4' : 'webm', OF.ext, OF.args(QUAL[o.q] || QUAL.high), p => box.prog(p), (st, p) => box.status(st, p)); box.close(); }
+      catch (e) { box.close(); if (!box.cancelled) toast('Conversion impossible : ' + e.message, 'err', 6000); else toast('Export annulé'); return; }
+    }
     download(blob, safeName(P.name) + ext);
     toast(`Export terminé : ${safeName(P.name) + ext} (${(blob.size / 1048576).toFixed(1)} Mo)`, 'ok', 5000);
   };
@@ -3083,6 +3099,118 @@ async function voiceOver() {
       $$('[data-act="voice"]').forEach(b => b.classList.add('live'));
     } else { clearInterval(timer); rec.stop(); }
   };
+}
+
+/* ==========================================================================
+   Convertisseur ffmpeg (chargé à la demande) : formats d'entrée et de sortie
+   ========================================================================== */
+const FFV = { F: 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/', C: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/' };
+const FF = { ff: null, loading: null };
+function loadScript(src) { return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => ko(new Error('chargement impossible')); document.head.appendChild(s); }); }
+async function fetchBlobURL(url, type, onProg) {
+  const r = await fetch(url); if (!r.ok) throw new Error('téléchargement impossible (' + r.status + ')');
+  const tot = +r.headers.get('content-length') || 0;
+  if (!r.body || !onProg) return URL.createObjectURL(new Blob([await r.blob()], { type }));
+  const rd = r.body.getReader(), parts = []; let n = 0;
+  for (; ;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); n += value.length; onProg(n, tot); }
+  return URL.createObjectURL(new Blob(parts, { type }));
+}
+async function ffLoad(onStatus) {
+  if (FF.ff) return FF.ff;
+  if (!FF.loading) FF.loading = (async () => {
+    onStatus && onStatus('Préparation du convertisseur…', 0);
+    if (!window.FFmpegWASM) await loadScript(FFV.F + 'ffmpeg.js');
+    const ff = new FFmpegWASM.FFmpeg();
+    const [w, c] = await Promise.all([fetchBlobURL(FFV.F + '814.ffmpeg.js', 'text/javascript'), fetchBlobURL(FFV.C + 'ffmpeg-core.js', 'text/javascript')]);
+    const wasm = await fetchBlobURL(FFV.C + 'ffmpeg-core.wasm', 'application/wasm', (n, t) => onStatus && onStatus(`Téléchargement du convertisseur (une seule fois) : ${(n / 1048576).toFixed(0)} / ${t ? (t / 1048576).toFixed(0) : '≈31'} Mo`, t ? n / t * 100 : 0));
+    await ff.load({ classWorkerURL: w, coreURL: c, wasmURL: wasm });
+    FF.ff = ff; return ff;
+  })();
+  try { return await FF.loading; } catch (e) { FF.loading = null; throw e; }
+}
+function ffReset() { try { FF.ff && FF.ff.terminate(); } catch (e) { } FF.ff = null; FF.loading = null; }
+const MIMEX = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', mkv: 'video/x-matroska', webm: 'video/webm', avi: 'video/x-msvideo', wmv: 'video/x-ms-wmv', flv: 'video/x-flv', mpg: 'video/mpeg', ogv: 'video/ogg', gif: 'image/gif', webp: 'image/webp', png: 'image/png', mp3: 'audio/mpeg', wav: 'audio/wav', flac: 'audio/flac', m4a: 'audio/mp4', ogg: 'audio/ogg', opus: 'audio/ogg', aiff: 'audio/aiff' };
+/* conversion : blob -> blob ; onProg(0..1) ; FF.cancel interrompt */
+async function ffRun(blob, inExt, outExt, args, onProg, onStatus) {
+  const ff = await ffLoad(onStatus);
+  onStatus && onStatus('Conversion…', 0);
+  const id = uid(), inN = `in_${id}.${inExt || 'bin'}`, outN = `out_${id}.${outExt}`;
+  await ff.writeFile(inN, new Uint8Array(await blob.arrayBuffer()));
+  const h = ({ progress }) => onProg && onProg(clamp(progress, 0, 1)); ff.on('progress', h);
+  try { await ff.exec(['-hide_banner', '-y', '-i', inN, ...args, outN]); }
+  finally { ff.off('progress', h); }
+  let out = null; try { out = await ff.readFile(outN); } catch (e) { }
+  try { await ff.deleteFile(inN); } catch (e) { } try { await ff.deleteFile(outN); } catch (e) { }
+  if (!out || !out.length) throw new Error('le convertisseur n\'a pas su lire ce fichier');
+  return new Blob([out.buffer], { type: MIMEX[outExt] || 'application/octet-stream' });
+}
+/* fenêtre de progression commune */
+function ffBox(title) {
+  const m = modal(`<div class="mh">${ic('clock', '', ' style="color:#9aa1ff"')}${esc(title)}</div>
+    <div class="mb"><div id="ffst" style="color:var(--g300);margin-bottom:10px">Préparation…</div><div class="prog"><i id="ffpr"></i></div>
+    <div style="margin-top:8px;font:12px ui-monospace,monospace;color:var(--g500)" id="ffpc"></div></div>
+    <div class="mf"><button class="btn red" id="ffcancel">${ic('x')}Annuler</button></div>`, { lock: true });
+  const o = {
+    cancelled: false, t0: performance.now(),
+    status: (s, p) => { const a = $('#ffst', m.el); if (a) a.textContent = s; if (p !== undefined) o.prog(p / 100, true); },
+    prog: (p, raw) => { const b = $('#ffpr', m.el); if (b) b.style.width = (p * 100) + '%'; const c = $('#ffpc', m.el); if (c && !raw) { const el = (performance.now() - o.t0) / 1000; c.textContent = Math.round(p * 100) + ' %' + (p > .03 ? ` · reste ≈ ${fmtDur(el / p - el)}` : ''); } },
+    close: () => m.close()
+  };
+  $('#ffcancel', m.el).onclick = () => { o.cancelled = true; ffReset(); m.close(); };
+  return o;
+}
+
+/* ---------- Entrée : rendre un fichier lisible pour le montage ---------- */
+const extOf = n => ((n || '').match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toLowerCase();
+async function convertForEdit(blob, name, kind) {
+  const ext = extOf(name), base = name.replace(/\.[^.]+$/, '');
+  const box = ffBox(`Conversion de « ${name} »`);
+  const tryRun = async (outExt, args) => { if (box.cancelled) throw new Error('annulé'); box.t0 = performance.now(); return ffRun(blob, ext, outExt, args, p => box.prog(p), (s, p) => box.status(s, p)); };
+  try {
+    let out = null, oname;
+    if (kind === 'image') { box.status('Conversion de l\'image…'); out = await tryRun('png', ['-frames:v', '1']); oname = base + '.png'; }
+    else if (kind === 'audio') { box.status('Conversion du son…'); out = await tryRun('m4a', ['-vn', '-c:a', 'aac', '-b:a', '256k']); oname = base + '.m4a'; }
+    else {
+      box.status('Réemballage rapide…');
+      try { out = await tryRun('mp4', ['-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-movflags', '+faststart']); const u = URL.createObjectURL(out); try { const m = await loadMeta(u, 'video'); if (!(m.w > 0 && isFinite(m.dur) && m.dur > 0)) out = null; } catch (e) { out = null; } URL.revokeObjectURL(u); } catch (e) { if (box.cancelled) throw e; out = null; }
+      if (!out) { box.status('Conversion de la vidéo (cela peut prendre un moment)…'); out = await tryRun('mp4', ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart']); }
+      oname = base + '.mp4';
+    }
+    box.close(); return { blob: out, name: oname };
+  } catch (e) { box.close(); if (!box.cancelled) toast(`« ${name} » : conversion impossible (${e.message})`, 'err', 5000); return null; }
+}
+
+/* ---------- Sortie : formats d'export ---------- */
+const OUTF = [
+  { k: 'mp4', g: 'Vidéo', n: 'MP4 (H.264)', d: 'Lecture partout : téléphones, TV, réseaux sociaux', ext: 'mp4', args: q => ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', q.crf, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', q.ab, '-movflags', '+faststart'] },
+  { k: 'mp4h', g: 'Vidéo', n: 'MP4 (H.265 / HEVC)', d: 'Plus léger à qualité égale, lecteurs récents', ext: 'mp4', args: q => ['-c:v', 'libx265', '-preset', 'fast', '-crf', String(+q.crf + 4), '-pix_fmt', 'yuv420p', '-tag:v', 'hvc1', '-c:a', 'aac', '-b:a', q.ab, '-movflags', '+faststart'] },
+  { k: 'webm', g: 'Vidéo', n: 'WebM (VP9)', d: 'Web, navigateurs', ext: 'webm', args: q => ['-c:v', 'libvpx-vp9', '-crf', String(+q.crf + 10), '-b:v', '0', '-deadline', 'realtime', '-cpu-used', '8', '-c:a', 'libopus', '-b:a', q.ab] },
+  { k: 'mov', g: 'Vidéo', n: 'MOV (QuickTime)', d: 'Mac, iPhone, iMovie, Final Cut', ext: 'mov', args: q => ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', q.crf, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', q.ab, '-movflags', '+faststart'] },
+  { k: 'prores', g: 'Vidéo', n: 'MOV (ProRes)', d: 'Montage professionnel, très lourd', ext: 'mov', args: q => ['-c:v', 'prores_ks', '-profile:v', '2', '-pix_fmt', 'yuv422p10le', '-c:a', 'pcm_s16le'] },
+  { k: 'mkv', g: 'Vidéo', n: 'MKV (Matroska)', d: 'Lecteurs multimédias (VLC…)', ext: 'mkv', args: q => ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', q.crf, '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', q.ab] },
+  { k: 'avi', g: 'Vidéo', n: 'AVI (MPEG-4)', d: 'Anciens lecteurs et logiciels', ext: 'avi', args: q => ['-c:v', 'mpeg4', '-q:v', q.qv, '-c:a', 'libmp3lame', '-b:a', q.ab] },
+  { k: 'wmv', g: 'Vidéo', n: 'WMV (Windows Media)', d: 'Anciens PC Windows, PowerPoint', ext: 'wmv', args: q => ['-c:v', 'wmv2', '-q:v', q.qv, '-c:a', 'wmav2', '-b:a', q.ab] },
+  { k: 'mpg', g: 'Vidéo', n: 'MPEG-2 (.mpg)', d: 'DVD, télévision', ext: 'mpg', args: q => ['-c:v', 'mpeg2video', '-q:v', q.qv, '-c:a', 'mp2', '-b:a', '224k', '-f', 'mpeg'] },
+  { k: 'flv', g: 'Vidéo', n: 'FLV (Flash)', d: 'Anciens sites et lecteurs', ext: 'flv', args: q => ['-c:v', 'flv1', '-q:v', q.qv, '-c:a', 'libmp3lame', '-ar', '44100', '-b:a', q.ab] },
+  { k: 'ogv', g: 'Vidéo', n: 'OGV (Theora)', d: 'Format libre', ext: 'ogv', args: q => ['-c:v', 'libtheora', '-q:v', '8', '-c:a', 'libvorbis', '-q:a', '6'] },
+  { k: 'gif', g: 'Animation', n: 'GIF animé', d: 'Sans son, 15 images/s, 720 px max', ext: 'gif', args: q => ['-vf', "fps=15,scale='min(720,iw)':-2:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse", '-an', '-loop', '0'] },
+  { k: 'webpa', g: 'Animation', n: 'WebP animé', d: 'Sans son, plus léger qu\'un GIF', ext: 'webp', args: q => ['-vf', "fps=15,scale='min(1080,iw)':-2", '-c:v', 'libwebp', '-q:v', '75', '-loop', '0', '-an'] },
+  { k: 'mp3', g: 'Son seul', n: 'MP3', d: 'Le plus répandu', ext: 'mp3', a: 1, args: q => ['-vn', '-c:a', 'libmp3lame', '-b:a', q.ab] },
+  { k: 'wav', g: 'Son seul', n: 'WAV', d: 'Sans perte, non compressé', ext: 'wav', a: 1, args: q => ['-vn', '-c:a', 'pcm_s16le'] },
+  { k: 'flac', g: 'Son seul', n: 'FLAC', d: 'Sans perte, compressé', ext: 'flac', a: 1, args: q => ['-vn', '-c:a', 'flac'] },
+  { k: 'm4a', g: 'Son seul', n: 'M4A (AAC)', d: 'Apple, smartphones', ext: 'm4a', a: 1, args: q => ['-vn', '-c:a', 'aac', '-b:a', q.ab] },
+  { k: 'ogg', g: 'Son seul', n: 'OGG (Vorbis)', d: 'Format libre', ext: 'ogg', a: 1, args: q => ['-vn', '-c:a', 'libvorbis', '-q:a', '6'] },
+  { k: 'opus', g: 'Son seul', n: 'Opus', d: 'Voix, très léger', ext: 'opus', a: 1, args: q => ['-vn', '-c:a', 'libopus', '-b:a', '160k'] },
+  { k: 'aiff', g: 'Son seul', n: 'AIFF', d: 'Sans perte (Mac)', ext: 'aiff', a: 1, args: q => ['-vn', '-c:a', 'pcm_s16be'] }
+];
+const OUTMAP = Object.fromEntries(OUTF.map(f => [f.k, f]));
+const QUAL = { std: { crf: '26', qv: '6', ab: '160k' }, high: { crf: '21', qv: '4', ab: '192k' }, max: { crf: '17', qv: '2', ab: '320k' } };
+/* format que le navigateur enregistre lui-même (pas de conversion) */
+function nativeOut(f) {
+  if (f.k === 'mp4') return pickMime('mp4');
+  if (f.k === 'webm') return pickMime('webm');
+  if (f.k === 'm4a') return ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || null;
+  return null;
 }
 
 /* ==========================================================================
@@ -3188,29 +3316,38 @@ function projDialog() {
 /* ---------- Export ---------- */
 function exportDialog(audioOnly) {
   if (!P.clips.length) { toast('Le montage est vide : ajoutez des clips avant d\'exporter'); return; }
-  const mp4 = !!pickMime('mp4'), webm = !!pickMime('webm');
-  const st = { fmt: mp4 ? 'mp4' : 'webm', res: 'proj', q: 'high', range: P.io ? 'io' : 'all', mute: SET.exportMute };
-  const resOpts = [['proj', `Projet (${P.w}×${P.h})`], ...[2160, 1440, 1080, 720, 480].filter(r => r < Math.min(P.w, P.h)).map(r => { const d = exportDims(r); return [r, `${r}p (${d.w}×${d.h})`]; })];
-  const m = modal(`<div class="mh">${ic(audioOnly ? 'music' : 'exportv', '', ' style="color:#fb923c"')}${audioOnly ? 'Exporter le son' : 'Exporter la vidéo'}<button class="x" data-close>${ic('x')}</button></div>
+  if (!window.MediaRecorder) { toast('L\'export n\'est pas pris en charge par ce navigateur', 'err'); return; }
+  const st = { out: audioOnly ? (SET.exAudio || 'mp3') : (SET.exFmt || 'mp4'), range: P.io ? 'io' : 'all' };
+  const resOpts = [['proj', `Projet (${P.w}×${P.h})`], ...[2160, 1440, 1080, 720, 480, 360].filter(r => r < Math.min(P.w, P.h)).map(r => { const d = exportDims(r); return [r, `${r}p (${d.w}×${d.h})`]; })];
+  const groups = [...new Set(OUTF.map(f => f.g))];
+  const m = modal(`<div class="mh">${ic('exportv', '', ' style="color:#fb923c"')}Exporter<button class="x" data-close>${ic('x')}</button></div>
     <div class="mb">
       <div class="f"><label>Nom du fichier</label><input type="text" id="exname" value="${esc(safeName(P.name))}"></div>
-      ${audioOnly ? '' : `<div class="f"><label>Format</label><div class="seg" id="exfmt"><button data-v="mp4" class="${st.fmt === 'mp4' ? 'on' : ''}"${mp4 ? '' : ' disabled title="Non pris en charge par ce navigateur"'}>MP4 (partout)</button><button data-v="webm" class="${st.fmt === 'webm' ? 'on' : ''}"${webm ? '' : ' disabled'}>WebM (web)</button></div></div>
-      <div class="f2"><div class="f"><label>Résolution</label><select id="exres">${resOpts.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
-      <div class="f"><label>Qualité</label><select id="exq"><option value="std">Standard (léger)</option><option value="high" selected>Haute</option><option value="max">Maximale</option></select></div></div>`}
+      <div class="f"><label>Format</label><select id="exfmt">${groups.map(g => `<optgroup label="${g}">${OUTF.filter(f => f.g === g).map(f => `<option value="${f.k}"${f.k === st.out ? ' selected' : ''}>${f.n} — ${f.d}</option>`).join('')}</optgroup>`).join('')}</select></div>
+      <div class="f2" id="exvid"><div class="f"><label>Résolution</label><select id="exres">${resOpts.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></div>
+      <div class="f"><label>Qualité</label><select id="exq"><option value="std">Standard (léger)</option><option value="high" selected>Haute</option><option value="max">Maximale</option></select></div></div>
       <div class="f"><label>Partie à exporter</label><div class="seg" id="exrange"><button data-v="all" class="${st.range === 'all' ? 'on' : ''}">Tout le montage (${tc(projDur())})</button><button data-v="io" class="${st.range === 'io' ? 'on' : ''}"${P.io ? '' : ' disabled title="Définissez une zone avec I et O"'}>Zone${P.io ? ` (${tc(P.io.b - P.io.a)})` : ''}</button></div></div>
-      ${tog('exmute', 'Couper le son des haut-parleurs pendant l\'export', st.mute)}
-      <div class="kv" style="margin-top:6px"><span>Temps d'export estimé</span><b id="exest"></b></div>
-      ${!mp4 && !audioOnly ? '<p style="color:var(--g500);font-size:12px">Ce navigateur n\'enregistre pas le MP4 : le WebM se lit dans tous les navigateurs et la plupart des lecteurs.</p>' : ''}
+      ${tog('exmute', 'Couper le son des haut-parleurs pendant l\'export', SET.exportMute)}
+      <div class="kv" style="margin-top:6px"><span>Méthode</span><b id="exmeth"></b></div>
+      <div class="kv"><span>Temps estimé</span><b id="exest"></b></div>
     </div>
     <div class="mf"><button class="btn" data-close>Annuler</button><button class="btn ok" id="exgo">${ic('exportv')}Exporter</button></div>`);
-  const est = () => { const d = st.range === 'io' && P.io ? P.io.b - P.io.a : projDur(); $('#exest', m.el).textContent = '≈ ' + fmtDur(d + 2) + ' (lecture en temps réel)'; };
-  m.el.addEventListener('click', e => { const b = e.target.closest('.seg button[data-v]'); if (!b || b.disabled) return; const seg = b.parentElement; $$('button', seg).forEach(x => x.classList.toggle('on', x === b)); if (seg.id === 'exfmt') st.fmt = b.dataset.v; if (seg.id === 'exrange') st.range = b.dataset.v; est(); });
-  est();
+  const upd = () => {
+    st.out = $('#exfmt', m.el).value; const f = OUTMAP[st.out], nat = !!nativeOut(f);
+    $('#exvid', m.el).style.display = f.a ? 'none' : '';
+    const d = st.range === 'io' && P.io ? P.io.b - P.io.a : projDur();
+    $('#exmeth', m.el).textContent = nat ? 'Directe (navigateur)' : 'Enregistrement puis conversion';
+    $('#exest', m.el).textContent = nat ? '≈ ' + fmtDur(d + 2) : `≈ ${fmtDur(d + 2)} + conversion${f.a ? ' (rapide)' : ' (plus long)'}`;
+  };
+  $('#exfmt', m.el).onchange = upd;
+  m.el.addEventListener('click', e => { const b = e.target.closest('.seg button[data-v]'); if (!b || b.disabled) return; $$('button', b.parentElement).forEach(x => x.classList.toggle('on', x === b)); st.range = b.dataset.v; upd(); });
+  upd();
   $('#exgo', m.el).onclick = () => {
     const nm = $('#exname', m.el).value.trim(); if (nm && nm !== safeName(P.name)) { P.name = nm; updDocName(); }
+    const f = OUTMAP[st.out]; if (f.a) SET.exAudio = f.k; else SET.exFmt = f.k;
     SET.exportMute = $('[data-k="exmute"]', m.el).checked; saveSet();
-    const o = { fmt: st.fmt, res: audioOnly ? 'proj' : ($('#exres', m.el).value === 'proj' ? 'proj' : +$('#exres', m.el).value), q: audioOnly ? 'high' : $('#exq', m.el).value, range: st.range, mute: SET.exportMute, audioOnly };
-    m.close(); startExport(o);
+    const rv = $('#exres', m.el).value;
+    m.close(); startExport({ out: st.out, res: f.a || rv === 'proj' ? 'proj' : +rv, q: $('#exq', m.el).value, range: st.range, mute: SET.exportMute });
   };
 }
 
@@ -3271,7 +3408,8 @@ const GUIDE = [
     <p class="lead">La médiathèque rassemble tout ce que vous avez importé. Un même média peut servir autant de fois que vous voulez dans le montage.</p>
     <h3>Importer</h3>
     <p>Ouvrez l'onglet <b>Médiathèque</b> et cliquez sur ${gk('import')} <b>Importer</b> (ou <kbd>Ctrl</kbd>+<kbd>I</kbd>), ou glissez simplement des fichiers depuis votre ordinateur n'importe où dans la fenêtre. Si vous les lâchez directement sur la timeline, ils y sont placés à l'endroit visé.</p>
-    <p>Sont acceptés : les vidéos <b>MP4, WebM, MOV</b> (selon ce que votre navigateur sait lire), les sons <b>MP3, WAV, OGG, M4A, FLAC</b> et les images <b>PNG, JPEG, WebP, GIF</b>.</p>
+    <p>MOMOmov accepte <b>pratiquement tous les formats</b> : vidéos MP4, MOV, MKV, WebM, AVI, WMV, FLV, MPEG, VOB, MTS/M2TS (caméscopes), 3GP, OGV, MXF, DV, RM…, sons MP3, WAV, FLAC, AAC/M4A, OGG, Opus, WMA, AIFF, AC3, AMR, APE…, et images PNG, JPEG, WebP, GIF, BMP, TIFF, TGA, PSD, SVG, AVIF…</p>
+    <p>Ce que le navigateur ne sait pas lire est <b>converti automatiquement</b> à l'import par le convertisseur intégré. Il est téléchargé une seule fois (environ 30 Mo), puis tout se passe sur votre ordinateur. Un simple changement d'emballage prend quelques secondes ; une vraie conversion de vidéo peut prendre un moment.</p>
     <h3>Utiliser un média</h3>
     <ul><li>Glissez la vignette dans la timeline : un cadre en pointillés montre où le clip va se poser.</li>
     <li>Ou survolez la vignette et cliquez sur le <b>+</b> : le clip est ajouté à la tête de lecture, sur la première piste libre.</li>
@@ -3364,14 +3502,18 @@ const GUIDE = [
   ['export', 'exportv', 'Exporter', `
     <p class="lead">L'export transforme votre montage en un fichier vidéo à partager, publier ou archiver.</p>
     <p>Cliquez sur ${gk('exportv')} puis <b>Exporter la vidéo</b> (<kbd>Ctrl</kbd>+<kbd>E</kbd>) et choisissez :</p>
-    <ul><li><b>Le format</b> : MP4 se lit partout (téléphones, TV, réseaux sociaux). WebM est très bien pour le web.</li>
+    <ul><li><b>Le format</b> : plus de 20 choix.
+      <ul><li><b>Vidéo</b> : MP4 (H.264 ou H.265), WebM, MOV (H.264 ou ProRes), MKV, AVI, WMV, MPEG-2, FLV, OGV.</li>
+      <li><b>Animation</b> : GIF animé, WebP animé.</li>
+      <li><b>Son seul</b> : MP3, WAV, FLAC, M4A, OGG, Opus, AIFF.</li></ul>
+      En cas de doute, <b>MP4 (H.264)</b> se lit partout.</li>
     <li><b>La résolution</b> : celle du projet ou une plus petite pour un fichier plus léger.</li>
     <li><b>La qualité</b> : Haute convient presque toujours ; Maximale pour l'archivage.</li>
     <li><b>La partie</b> : tout le montage, ou seulement une zone.</li></ul>
     <h3>La zone</h3>
     <p>Placez la tête de lecture et appuyez sur <kbd>I</kbd> pour le début de la zone, puis <kbd>O</kbd> pour la fin. Vous pouvez aussi faire un <b>clic droit sur la règle</b>. Elle apparaît en bleu sur la règle. Avec la lecture en boucle ${gk('loop')}, l'aperçu tourne sur cette zone.</p>
-    <div class="tip"><b>Bon à savoir :</b> l'export rejoue le montage en temps réel. Un film de 3 minutes prend environ 3 minutes. Gardez l'onglet affiché pendant ce temps.</div>
-    <p>Le même menu enregistre aussi <b>le son seul</b> ou <b>l'image</b> sous la tête de lecture (PNG), par exemple pour une miniature. Le bouton ${gk('camera')} de la palette fait la même capture d'un clic.</p>`],
+    <div class="tip"><b>Bon à savoir :</b> l'export rejoue le montage en temps réel : un film de 3 minutes prend environ 3 minutes, gardez l'onglet affiché. Pour les formats que le navigateur n'enregistre pas lui-même, une étape de <b>conversion</b> suit (indiquée dans la fenêtre d'export avec le temps estimé).</div>
+    <p>Le même menu enregistre aussi <b>l'image</b> sous la tête de lecture (PNG), par exemple pour une miniature. Le bouton ${gk('camera')} de la palette fait la même capture d'un clic.</p>`],
   ['save', 'save', 'Sauvegarde', `
     <p class="lead">Un projet MOMOmov s'enregistre dans un fichier <b>.mmv</b> qui contient le montage et tous ses médias : vous pouvez le copier sur une clé USB ou un autre ordinateur, tout suivra.</p>
     <p>Le bouton ${gk('save')} regroupe :</p>
@@ -3617,6 +3759,7 @@ window.addEventListener('beforeunload', e => { if (DIRTY && P && (P.clips.length
 document.addEventListener('visibilitychange', () => { if (document.hidden && BK.pending && P && (P.clips.length || P.media.length) && SET.backup > 0 && !EXP) backupNow(true); });
 function boot() {
   applySizes();
+  const acc = 'video/*,audio/*,image/*,.mmv,' + [...EXTL.video, ...EXTL.audio, ...EXTL.image].map(e => '.' + e).join(','); $('#fimport').accept = acc; $('#fopen').accept = acc;
   buildHeader(); buildPanes(); buildTools(); buildTLBar(); buildTransport();
   binInit(); viewerInit(); inspInit($('#inspb')); inspInit($('#toolb')); TLinit();
   CX = $('#cv').getContext('2d');
