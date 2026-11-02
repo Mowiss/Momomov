@@ -2820,36 +2820,59 @@ async function trackFrom(c, u0, v0) {
     const md = media(c.mediaId), ar = (md.w || 16) / (md.h || 9), SW = ar >= 1 ? 480 : Math.round(480 * ar), SH = ar >= 1 ? Math.round(480 / ar) : 480;
     const ts = []; for (let i = 0; i < N; i++) ts.push(Math.max(0, srcTime(c, t0 + i / P.fps)));
     const gen = new MB.CanvasSink(tk, { width: SW, height: SH, fit: 'fill', poolSize: 2 }).canvasesAtTimestamps(ts);
-    const R = 8, S = 22, PW = R * 2 + 1; let tpl = null, cx = u0 * SW, cy = v0 * SH;
-    const pts = []; let lost = -1; box.t0 = performance.now();
+    // suivi robuste : motif centré (insensible aux changements de lumière), prédiction du mouvement,
+    // recherche large puis fine, deux modèles (d'origine + actualisé) et « roue libre » quand le détail est masqué
+    const R = 10, PW = R * 2 + 1, PN = PW * PW, W1 = SW + 1, II = new Float64Array(W1 * (SH + 1));
+    let g = null, cx = u0 * SW, cy = v0 * SH, vx = 0, vy = 0, tpl = null, tpl0 = null, tdev = 8, miss = 0;
+    const maxMiss = Math.round(P.fps * 1.5), pts = []; let lost = -1, reason = ''; box.t0 = performance.now();
+    const at = (x, y) => g[clamp(Math.round(y), 0, SH - 1) * SW + clamp(Math.round(x), 0, SW - 1)];
+    const patch = (x0, y0) => { const q = new Float32Array(PN); let s = 0; for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) { const v = at(x0 - R + x, y0 - R + y); q[y * PW + x] = v; s += v; } const mu = s / PN; let d = 0; for (let k = 0; k < PN; k++) { q[k] -= mu; d += Math.abs(q[k]); } return { q, dev: d / PN }; };
+    const integ = () => { for (let y = 0; y < SH; y++) { let row = 0; for (let x = 0; x < SW; x++) { row += g[y * SW + x]; II[(y + 1) * W1 + x + 1] = II[y * W1 + x + 1] + row; } } };
+    const search = (Tq, sx, sy, S, step, lim) => {
+      let best = lim, bx = sx, by = sy;
+      for (let dy = -S; dy <= S; dy += step) for (let dx = -S; dx <= S; dx += step) {
+        const ox = Math.round(sx + dx) - R, oy = Math.round(sy + dy) - R; if (ox < 0 || oy < 0 || ox + PW > SW || oy + PW > SH) continue;
+        const mu = (II[(oy + PW) * W1 + ox + PW] - II[oy * W1 + ox + PW] - II[(oy + PW) * W1 + ox] + II[oy * W1 + ox]) / PN;
+        let s = 0;
+        for (let y = 0; y < PW && s < best; y++) { const row = (oy + y) * SW + ox, tr = y * PW; for (let x = 0; x < PW; x++) s += Math.abs(g[row + x] - mu - Tq[tr + x]); }
+        if (s < best) { best = s; bx = sx + dx; by = sy + dy; }
+      }
+      return { s: best, x: bx, y: by };
+    };
+    const find = (Tq, px, py, S) => { const a = search(Tq, px, py, S, 2, 1e18); return search(Tq, a.x, a.y, 2, 1, a.s + 1e-6); };
     for (let i = 0; i < N; i++) {
       if (cancelled) break;
       const r = await gen.next(); if (r.done) break; if (!r.value) continue;
-      const g = grayOf(r.value.canvas, SW, SH);
-      const at = (x, y) => g[clamp(Math.round(y), 0, SH - 1) * SW + clamp(Math.round(x), 0, SW - 1)];
-      if (!tpl) { tpl = new Float32Array(PW * PW); for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) tpl[y * PW + x] = at(cx - R + x, cy - R + y); }
+      g = grayOf(r.value.canvas, SW, SH); integ();
+      if (!tpl) { const p0 = patch(cx, cy); tpl = p0.q; tpl0 = Float32Array.from(p0.q); tdev = Math.max(4, p0.dev); }
       else {
-        let best = 1e18, bx = cx, by = cy;
-        for (let dy = -S; dy <= S; dy++) for (let dx = -S; dx <= S; dx++) {
-          const ox = Math.round(cx + dx) - R, oy = Math.round(cy + dy) - R; if (ox < 0 || oy < 0 || ox + PW > SW || oy + PW > SH) continue;
-          let s = 0;
-          for (let y = 0; y < PW && s < best; y++) { const row = (oy + y) * SW + ox, tr = y * PW; for (let x = 0; x < PW; x++) s += Math.abs(g[row + x] - tpl[tr + x]); }
-          if (s < best) { best = s; bx = cx + dx; by = cy + dy; }
+        const px = cx + vx, py = cy + vy, S = miss ? 56 : 34, norm = PN * tdev;
+        let m1 = find(tpl, px, py, S), sc = m1.s / norm;
+        if (sc > .45) { const m0 = find(tpl0, px, py, S), s0 = m0.s / norm; if (s0 < sc) { m1 = m0; sc = s0; } }
+        if (sc <= .62) {
+          const nvx = m1.x - cx, nvy = m1.y - cy; vx = vx * .5 + nvx * .5; vy = vy * .5 + nvy * .5; cx = m1.x; cy = m1.y;
+          if (miss) { // le détail réapparaît : on recolle la roue libre entre les deux positions sûres
+            const a = pts[pts.length - miss - 1]; if (a) for (let k = 1; k <= miss; k++) { const q = pts[pts.length - miss - 1 + k], f = k / (miss + 1); q.u = a.u + (cx / SW - a.u) * f; q.v = a.v + (cy / SH - a.v) * f; }
+            miss = 0;
+          }
+          if (sc < .4) { const np = patch(cx, cy); for (let k = 0; k < PN; k++) tpl[k] = tpl[k] * .88 + np.q[k] * .12; }
+        } else {
+          miss++; cx += vx; cy += vy; vx *= .85; vy *= .85;
+          if (miss > maxMiss) { lost = i - miss; pts.length = Math.max(0, pts.length - miss + 1); reason = 'masqué ou trop transformé'; break; }
         }
-        if (best / (PW * PW) > 38) { lost = i; break; }
-        cx = bx; cy = by;
-        for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) tpl[y * PW + x] = tpl[y * PW + x] * .85 + at(cx - R + x, cy - R + y) * .15;
+        if (cx < 0 || cy < 0 || cx >= SW || cy >= SH) { lost = i; reason = 'sorti de l\'image'; if (miss) pts.length = Math.max(0, pts.length - miss + 1); break; }
       }
-      pts.push({ t: t0 + i / P.fps - c.start, u: cx / SW, v: cy / SH });
-      if (i % 5 === 0) { box.prog(i / N); box.status(`Suivi du point — ${tc(t0 + i / P.fps)}`); await new Promise(r => setTimeout(r, 0)); }
+      pts.push({ t: t0 + i / P.fps - c.start, u: clamp(cx / SW, 0, 1), v: clamp(cy / SH, 0, 1) });
+      if (i % 5 === 0) { box.prog(i / N); box.status(`Suivi du point — ${tc(t0 + i / P.fps)}${miss ? ' (détail masqué, recherche…)' : ''}`); await new Promise(r => setTimeout(r, 0)); }
     }
+    if (miss && lost < 0) { lost = N - miss; pts.length = Math.max(0, pts.length - miss); reason = 'masqué en fin de clip'; }
     try { await gen.return(); } catch (e) { }
     box.close();
     if (cancelled && !pts.length) { toast('Suivi annulé'); return; }
     if (pts.length < 2) { toast('Le point n\'a pas pu être suivi : choisissez un détail bien contrasté', 'err', 5000); return; }
     act(() => { const keep = c.trk ? c.trk.pts.filter(q => q.t < pts[0].t - 1e-4) : []; c.trk = { pts: [...keep, ...pts] }; }); TRK.last = c.id;
     SEL = new Set([c.id]); refreshAll();
-    if (lost >= 0) toast(`Le suivi a décroché à ${tc(t0 + lost / P.fps)} : placez la tête de lecture à cet endroit et recliquez sur le détail pour continuer`, 'err', 7000);
+    if (lost >= 0) toast(`Le suivi s'est arrêté à ${tc(t0 + lost / P.fps)} (détail ${reason}) : placez la tête de lecture à cet endroit et recliquez sur le détail pour continuer`, 'err', 7000);
     else toast(`Point suivi sur ${fmtDur(pts.length / P.fps)} : accrochez-y un texte, un flou ou une lumière`, 'ok', 5000);
   } catch (e) { box.close(); toast('Suivi impossible : ' + (e.message || e), 'err', 5000); }
   finally { try { input && input.dispose && input.dispose(); } catch (e) { } TRK.busy = false; }
@@ -5529,7 +5552,7 @@ const GUIDE = [
     <h3>Suivi de point</h3>
     <ul><li>Prenez l'outil ${gk('target')} <b>Suivi de point</b> (<kbd>K</kbd>), placez la tête de lecture là où commence le suivi, puis cliquez sur un détail bien contrasté de la vidéo (une main, un logo, un visage).</li>
     <li>MOMOmov suit ce détail image par image jusqu'à la fin du clip. Le trajet s'affiche en pointillés cyan dans l'aperçu.</li>
-    <li>S'il décroche (détail caché, mouvement trop rapide), placez la tête de lecture à cet endroit et recliquez sur le détail : le suivi reprend à partir de là.</li>
+    <li>Le suivi tient les changements de lumière, les mouvements rapides et le détail brièvement caché (une main qui passe devant) : il devine la trajectoire pendant environ une seconde et demie puis raccroche. S'il s'arrête quand même (détail sorti de l'image, trop longtemps caché, ou qui tourne ou change beaucoup de taille), un message donne le moment : placez-y la tête de lecture et recliquez sur le détail, le suivi reprend à partir de là.</li>
     <li>Dans le volet <b>Outil en cours</b>, <b>accrochez au point</b> : un <b>texte</b> qui suit le détail, un <b>flou</b> ou des <b>pixels</b> pour anonymiser un visage ou une plaque, un <b>halo</b>, un <b>reflet</b> (lens flare) ou un <b>éclair</b>.</li>
     <li>Un texte accroché garde son décalage : déplacez-le dans l'aperçu pour le placer au-dessus du détail. « Détacher » dans ses propriétés le libère.</li></ul>
     <h3>Feu et magie</h3>
