@@ -2836,79 +2836,146 @@ function grayOf(cv, w, h) {
   for (let i = 0, j = 0; j < g.length; i += 4, j++) g[j] = d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114;
   return g;
 }
-async function trackFrom(c, u0, v0) {
-  if (TRK.busy) return; if (c.type !== 'video') { toast('Le suivi fonctionne sur une vidéo'); return; }
-  const m = M.get(c.mediaId); if (!m) return;
-  const t0 = Math.max(c.start, fsnap(T)), t1 = cEnd(c), N = Math.max(1, Math.round((t1 - t0) * P.fps));
-  if (N < 2) { toast('Placez la tête de lecture avant la fin du clip'); return; }
+/* --- Suivi par nuée de points (méthode Lucas-Kanade pyramidale, comme les logiciels pros) ---
+   Autour du détail cliqué, on choisit une trentaine de « coins » bien texturés, on suit chacun
+   d'une image à l'autre, on écarte ceux qui se trompent (vérification aller-retour) et le point
+   suivi bouge comme la médiane du groupe. Tient les rotations, les changements de taille modérés,
+   les flous de bougé ; si tout le groupe est caché, roue libre puis raccroche. */
+function pyr(g, w, h) { // 3 niveaux : plein, 1/2, 1/4
+  const L = [{ g, w, h }];
+  for (let k = 1; k < 3; k++) { const p = L[k - 1], w2 = p.w >> 1, h2 = p.h >> 1, o = new Float32Array(w2 * h2);
+    for (let y = 0; y < h2; y++) for (let x = 0; x < w2; x++) { const i = 2 * y * p.w + 2 * x; o[y * w2 + x] = (p.g[i] + p.g[i + 1] + p.g[i + p.w] + p.g[i + p.w + 1]) * .25; }
+    L.push({ g: o, w: w2, h: h2 }); }
+  return L;
+}
+function bil(I, x, y) {
+  if (x < 0) x = 0; if (y < 0) y = 0; if (x > I.w - 1.001) x = I.w - 1.001; if (y > I.h - 1.001) y = I.h - 1.001;
+  const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0, i = y0 * I.w + x0, g = I.g;
+  return (g[i] * (1 - fx) + g[i + 1] * fx) * (1 - fy) + (g[i + I.w] * (1 - fx) + g[i + I.w + 1] * fx) * fy;
+}
+const KW = 7; // demi-fenêtre (15 x 15)
+function lkPoint(A, B, x, y) { // A,B : pyramides ; renvoie la position dans B ou null
+  let gx = 0, gy = 0;
+  for (let l = A.length - 1; l >= 0; l--) {
+    const I = A[l], J = B[l], s = 1 / (1 << l), px = x * s, py = y * s;
+    if (px < KW + 1 || py < KW + 1 || px > I.w - KW - 2 || py > I.h - KW - 2) { if (l === 0) return null; gx *= 2; gy *= 2; continue; }
+    let a = 0, b = 0, c = 0; const n = (2 * KW + 1) ** 2, IX = new Float32Array(n), IY = new Float32Array(n), IV = new Float32Array(n);
+    let k = 0;
+    for (let v = -KW; v <= KW; v++) for (let u = -KW; u <= KW; u++, k++) {
+      const ix = (bil(I, px + u + 1, py + v) - bil(I, px + u - 1, py + v)) * .5, iy = (bil(I, px + u, py + v + 1) - bil(I, px + u, py + v - 1)) * .5;
+      IX[k] = ix; IY[k] = iy; IV[k] = bil(I, px + u, py + v); a += ix * ix; b += ix * iy; c += iy * iy;
+    }
+    const det = a * c - b * b; if (det < 1e-3 || (a + c - Math.sqrt((a - c) ** 2 + 4 * b * b)) / 2 / n < .05) return null;
+    let dx = 0, dy = 0;
+    for (let it = 0; it < 12; it++) {
+      let ex = 0, ey = 0; k = 0;
+      for (let v = -KW; v <= KW; v++) for (let u = -KW; u <= KW; u++, k++) { const d = IV[k] - bil(J, px + gx + dx + u, py + gy + dy + v); ex += d * IX[k]; ey += d * IY[k]; }
+      const nx = (c * ex - b * ey) / det, ny = (a * ey - b * ex) / det; dx += nx; dy += ny;
+      if (nx * nx + ny * ny < 1e-3) break;
+    }
+    if (l > 0) { gx = 2 * (gx + dx); gy = 2 * (gy + dy); } else { gx += dx; gy += dy; }
+  }
+  return [x + gx, y + gy];
+}
+function corners(I, cx, cy, rad, max, have) { // coins de Shi-Tomasi autour du centre
+  const out = [], x0 = Math.max(2, cx - rad | 0), x1 = Math.min(I.w - 3, cx + rad | 0), y0 = Math.max(2, cy - rad | 0), y1 = Math.min(I.h - 3, cy + rad | 0), g = I.g, w = I.w;
+  for (let y = y0; y <= y1; y += 2) for (let x = x0; x <= x1; x += 2) {
+    if ((x - cx) ** 2 + (y - cy) ** 2 > rad * rad) continue;
+    let a = 0, b = 0, c = 0;
+    for (let v = -2; v <= 2; v++) for (let u = -2; u <= 2; u++) { const i = (y + v) * w + x + u, ix = (g[i + 1] - g[i - 1]) * .5, iy = (g[i + w] - g[i - w]) * .5; a += ix * ix; b += ix * iy; c += iy * iy; }
+    const e = (a + c - Math.sqrt((a - c) ** 2 + 4 * b * b)) / 2; if (e > 30) out.push([x, y, e]);
+  }
+  out.sort((p, q) => q[2] - p[2]); const sel = [...have];
+  for (const p of out) { if (sel.length >= max) break; if (sel.every(q => (q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2 > 36)) sel.push([p[0], p[1], 0]); }
+  return sel.slice(have.length).map(p => [p[0], p[1]]);
+}
+/* recalage sur l'apparence d'origine du détail (après qu'il a été caché) */
+function tplGrab(I, cx, cy, R) { const PW = 2 * R + 1, q = new Float32Array(PW * PW); let s = 0; for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) { const v = bil(I, cx - R + x, cy - R + y); q[y * PW + x] = v; s += v; } const mu = s / q.length; let d = 0; for (let k = 0; k < q.length; k++) { q[k] -= mu; d += Math.abs(q[k]); } return { q, R, dev: Math.max(4, d / q.length) }; }
+function tplFind(I, T0, cx, cy, S) {
+  const R = T0.R, PW = 2 * R + 1, N = PW * PW; let best = 1e18, bx = cx, by = cy;
+  for (let dy = -S; dy <= S; dy++) for (let dx = -S; dx <= S; dx++) {
+    const ox = Math.round(cx + dx) - R, oy = Math.round(cy + dy) - R; if (ox < 0 || oy < 0 || ox + PW > I.w || oy + PW > I.h) continue;
+    let mu = 0; for (let y = 0; y < PW; y += 2) for (let x = 0; x < PW; x += 2) mu += I.g[(oy + y) * I.w + ox + x]; mu /= Math.ceil(PW / 2) ** 2;
+    let sc = 0; for (let y = 0; y < PW && sc < best; y++) { const row = (oy + y) * I.w + ox; for (let x = 0; x < PW; x++) sc += Math.abs(I.g[row + x] - mu - T0.q[y * PW + x]); }
+    if (sc < best) { best = sc; bx = cx + dx; by = cy + dy; }
+  }
+  return { x: bx, y: by, s: best / (N * T0.dev) };
+}
+const med = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[n >> 1] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0; };
+async function trackFrom(c, u0, v0, opts = {}) {
+  if (TRK.busy) return null; if (c.type !== 'video') { toast('Le suivi fonctionne sur une vidéo'); return null; }
+  const m = M.get(c.mediaId); if (!m) return null;
+  const t0 = Math.max(c.start, fsnap(opts.from ?? T)), t1 = Math.min(cEnd(c), opts.to ?? cEnd(c)), N = Math.max(1, Math.round((t1 - t0) * P.fps));
+  if (N < 2) { toast('Placez la tête de lecture avant la fin du clip'); return null; }
   TRK.busy = true; pause();
   const box = ffBox('Suivi du point'); let cancelled = false;
   const cb = document.querySelector('#ffcancel'); if (cb) cb.onclick = () => { cancelled = true; box.close(); };
-  let input = null;
+  let input = null, result = null;
   try {
     box.status('Lecture de la vidéo…', 2);
     const MB = await loadMB();
     input = new MB.Input({ source: new MB.BlobSource(m.pfile || m.blob), formats: MB.ALL_FORMATS });
     const tk = await input.getPrimaryVideoTrack(); if (!tk || !(await tk.canDecode())) throw new Error('vidéo non décodable');
-    const md = media(c.mediaId), ar = (md.w || 16) / (md.h || 9), SW = ar >= 1 ? 480 : Math.round(480 * ar), SH = ar >= 1 ? Math.round(480 / ar) : 480;
+    const md = media(c.mediaId), ar = (md.w || 16) / (md.h || 9), LS = 640;
+    const SW = ar >= 1 ? LS : Math.round(LS * ar), SH = ar >= 1 ? Math.round(LS / ar) : LS;
     const ts = []; for (let i = 0; i < N; i++) ts.push(Math.max(0, srcTime(c, t0 + i / P.fps)));
     const gen = new MB.CanvasSink(tk, { width: SW, height: SH, fit: 'fill', poolSize: 2 }).canvasesAtTimestamps(ts);
-    // suivi robuste : motif centré (insensible aux changements de lumière), prédiction du mouvement,
-    // recherche large puis fine, deux modèles (d'origine + actualisé) et « roue libre » quand le détail est masqué
-    const R = 10, PW = R * 2 + 1, PN = PW * PW, W1 = SW + 1, II = new Float64Array(W1 * (SH + 1));
-    let g = null, cx = u0 * SW, cy = v0 * SH, vx = 0, vy = 0, tpl = null, tpl0 = null, tdev = 8, miss = 0;
-    const maxMiss = Math.round(P.fps * 1.5), pts = []; let lost = -1, reason = ''; box.t0 = performance.now();
-    const at = (x, y) => g[clamp(Math.round(y), 0, SH - 1) * SW + clamp(Math.round(x), 0, SW - 1)];
-    const patch = (x0, y0) => { const q = new Float32Array(PN); let s = 0; for (let y = 0; y < PW; y++) for (let x = 0; x < PW; x++) { const v = at(x0 - R + x, y0 - R + y); q[y * PW + x] = v; s += v; } const mu = s / PN; let d = 0; for (let k = 0; k < PN; k++) { q[k] -= mu; d += Math.abs(q[k]); } return { q, dev: d / PN }; };
-    const integ = () => { for (let y = 0; y < SH; y++) { let row = 0; for (let x = 0; x < SW; x++) { row += g[y * SW + x]; II[(y + 1) * W1 + x + 1] = II[y * W1 + x + 1] + row; } } };
-    const search = (Tq, sx, sy, S, step, lim) => {
-      let best = lim, bx = sx, by = sy;
-      for (let dy = -S; dy <= S; dy += step) for (let dx = -S; dx <= S; dx += step) {
-        const ox = Math.round(sx + dx) - R, oy = Math.round(sy + dy) - R; if (ox < 0 || oy < 0 || ox + PW > SW || oy + PW > SH) continue;
-        const mu = (II[(oy + PW) * W1 + ox + PW] - II[oy * W1 + ox + PW] - II[(oy + PW) * W1 + ox] + II[oy * W1 + ox]) / PN;
-        let s = 0;
-        for (let y = 0; y < PW && s < best; y++) { const row = (oy + y) * SW + ox, tr = y * PW; for (let x = 0; x < PW; x++) s += Math.abs(g[row + x] - mu - Tq[tr + x]); }
-        if (s < best) { best = s; bx = sx + dx; by = sy + dy; }
-      }
-      return { s: best, x: bx, y: by };
-    };
-    const find = (Tq, px, py, S) => { const a = search(Tq, px, py, S, 2, 1e18); return search(Tq, a.x, a.y, 2, 1, a.s + 1e-6); };
+    const RAD = Math.max(14, Math.round(SW * .045)), maxMiss = Math.round(P.fps * 1.5);
+    let prev = null, TPL0 = null, cx = u0 * SW, cy = v0 * SH, vx = 0, vy = 0, miss = 0, P0 = [], OFF = [], lost = -1, reason = '';
+    const pts = []; box.t0 = performance.now();
     for (let i = 0; i < N; i++) {
       if (cancelled) break;
       const r = await gen.next(); if (r.done) break; if (!r.value) continue;
-      g = grayOf(r.value.canvas, SW, SH); integ();
-      if (!tpl) { const p0 = patch(cx, cy); tpl = p0.q; tpl0 = Float32Array.from(p0.q); tdev = Math.max(4, p0.dev); }
-      else {
-        const px = cx + vx, py = cy + vy, S = miss ? 56 : 34, norm = PN * tdev;
-        let m1 = find(tpl, px, py, S), sc = m1.s / norm;
-        if (sc > .45) { const m0 = find(tpl0, px, py, S), s0 = m0.s / norm; if (s0 < sc) { m1 = m0; sc = s0; } }
-        if (sc <= .62) {
-          const nvx = m1.x - cx, nvy = m1.y - cy; vx = vx * .5 + nvx * .5; vy = vy * .5 + nvy * .5; cx = m1.x; cy = m1.y;
-          if (miss) { // le détail réapparaît : on recolle la roue libre entre les deux positions sûres
-            const a = pts[pts.length - miss - 1]; if (a) for (let k = 1; k <= miss; k++) { const q = pts[pts.length - miss - 1 + k], f = k / (miss + 1); q.u = a.u + (cx / SW - a.u) * f; q.v = a.v + (cy / SH - a.v) * f; }
-            miss = 0;
-          }
-          if (sc < .4) { const np = patch(cx, cy); for (let k = 0; k < PN; k++) tpl[k] = tpl[k] * .88 + np.q[k] * .12; }
+      const cur = pyr(grayOf(r.value.canvas, SW, SH), SW, SH);
+      if (prev) {
+        const np = [], noff = [], dxs = [], dys = [];
+        for (let k = 0; k < P0.length; k++) {
+          const q = lkPoint(prev, cur, P0[k][0], P0[k][1]); if (!q) continue;
+          const back = lkPoint(cur, prev, q[0], q[1]); if (!back || (back[0] - P0[k][0]) ** 2 + (back[1] - P0[k][1]) ** 2 > 1) continue;
+          np.push(q); noff.push(OFF[k]); dxs.push(q[0] - P0[k][0]); dys.push(q[1] - P0[k][1]);
+        }
+        // on écarte les points qui ne bougent pas comme le groupe (fond, autre objet)
+        const mx = med(dxs), my = med(dys), keep = [];
+        for (let k = 0; k < np.length; k++) if (Math.hypot(dxs[k] - mx, dys[k] - my) < Math.max(2, Math.hypot(mx, my) * .5)) keep.push(k);
+        if (keep.length >= 3) {
+          // nouvelle position = médiane des points + leur décalage d'origine (corrigé de l'échelle)
+          const sx = keep.map(k => np[k][0]), sy = keep.map(k => np[k][1]), ccx = med(sx), ccy = med(sy);
+          let sc = 1; if (keep.length >= 5) { const r1 = [], r0 = []; for (const k of keep) { r1.push(Math.hypot(np[k][0] - ccx, np[k][1] - ccy)); r0.push(Math.hypot(noff[k][0], noff[k][1])); } const a = med(r0); if (a > 2) sc = clamp(med(r1) / a, .5, 2); }
+          const ex = keep.map(k => np[k][0] - noff[k][0] * sc), ey = keep.map(k => np[k][1] - noff[k][1] * sc);
+          let nx = med(ex), ny = med(ey);
+          if (miss && TPL0) { const f = tplFind(cur[0], TPL0, nx, ny, 16); if (f.s < .55) { const ddx = f.x - nx, ddy = f.y - ny; nx = f.x; ny = f.y; for (const k of keep) { noff[k] = [noff[k][0] - ddx / sc, noff[k][1] - ddy / sc]; } } }
+          if (miss) { const a = pts[pts.length - miss - 1]; if (a) for (let k = 1; k <= miss; k++) { const q = pts[pts.length - miss - 1 + k], f = k / (miss + 1); q.u = a.u + (nx / SW - a.u) * f; q.v = a.v + (ny / SH - a.v) * f; } miss = 0; }
+          vx = vx * .5 + (nx - cx) * .5; vy = vy * .5 + (ny - cy) * .5; cx = nx; cy = ny;
+          P0 = keep.map(k => np[k]); OFF = keep.map(k => [noff[k][0] * sc, noff[k][1] * sc]);
         } else {
-          miss++; cx += vx; cy += vy; vx *= .85; vy *= .85;
-          if (miss > maxMiss) { lost = i - miss; pts.length = Math.max(0, pts.length - miss + 1); reason = 'masqué ou trop transformé'; break; }
+          miss++; cx += vx; cy += vy; vx *= .85; vy *= .85; P0 = []; OFF = [];
+          if (miss > maxMiss) { lost = i - miss; pts.length = Math.max(0, pts.length - miss + 1); reason = 'caché trop longtemps ou trop transformé'; break; }
         }
         if (cx < 0 || cy < 0 || cx >= SW || cy >= SH) { lost = i; reason = 'sorti de l\'image'; if (miss) pts.length = Math.max(0, pts.length - miss + 1); break; }
       }
+      // on complète le groupe de points autour du détail
+      if (P0.length < 14 || i % 10 === 0) {
+        const add = corners(cur[0], cx, cy, RAD * (miss ? 1.6 : 1), 30, P0.map(p => [p[0], p[1]]));
+        for (const p of add) { P0.push(p); OFF.push([p[0] - cx, p[1] - cy]); }
+      }
+      if (!prev && !P0.length) { reason = 'trop uni'; break; }
+      if (!prev) TPL0 = tplGrab(cur[0], cx, cy, 12);
+      prev = cur;
       pts.push({ t: t0 + i / P.fps - c.start, u: clamp(cx / SW, 0, 1), v: clamp(cy / SH, 0, 1) });
-      if (i % 5 === 0) { box.prog(i / N); box.status(`Suivi du point — ${tc(t0 + i / P.fps)}${miss ? ' (détail masqué, recherche…)' : ''}`); await new Promise(r => setTimeout(r, 0)); }
+      if (i % 4 === 0) { box.prog(i / N); box.status(`Suivi du point — ${tc(t0 + i / P.fps)}${miss ? ' (détail caché, recherche…)' : ` · ${P0.length} points d'accroche`}`); await new Promise(r => setTimeout(r, 0)); }
     }
-    if (miss && lost < 0) { lost = N - miss; pts.length = Math.max(0, pts.length - miss); reason = 'masqué en fin de clip'; }
+    if (miss && lost < 0) { lost = N - miss; pts.length = Math.max(0, pts.length - miss); reason = 'caché en fin de clip'; }
     try { await gen.return(); } catch (e) { }
     box.close();
-    if (cancelled && !pts.length) { toast('Suivi annulé'); return; }
-    if (pts.length < 2) { toast('Le point n\'a pas pu être suivi : choisissez un détail bien contrasté', 'err', 5000); return; }
-    act(() => { const keep = c.trk ? c.trk.pts.filter(q => q.t < pts[0].t - 1e-4) : []; c.trk = { pts: [...keep, ...pts] }; }); TRK.last = c.id;
-    SEL = new Set([c.id]); refreshAll();
-    if (lost >= 0) toast(`Le suivi s'est arrêté à ${tc(t0 + lost / P.fps)} (détail ${reason}) : placez la tête de lecture à cet endroit et recliquez sur le détail pour continuer`, 'err', 7000);
-    else toast(`Point suivi sur ${fmtDur(pts.length / P.fps)} : accrochez-y un texte, un flou ou une lumière`, 'ok', 5000);
+    if (cancelled && !pts.length) { toast('Suivi annulé'); return null; }
+    if (pts.length < 2) { toast('Ce détail ne peut pas être suivi : choisissez un endroit contrasté (un bord, un motif, un œil…), pas une zone unie', 'err', 6000); return null; }
+    act(() => { const keep = c.trk ? c.trk.pts.filter(q => q.t < pts[0].t - 1e-4 || q.t > pts[pts.length - 1].t + 1e-4) : []; c.trk = { pts: [...keep, ...pts].sort((a, b) => a.t - b.t) }; if (opts.layer) opts.layer.follow = c.id; }); TRK.last = c.id;
+    refreshAll(); result = c;
+    if (lost >= 0) toast(`Le suivi s'est arrêté à ${tc(t0 + lost / P.fps)} (détail ${reason}) : placez la tête de lecture à cet endroit et recliquez sur le détail pour continuer`, 'err', 8000);
+    else toast(`Point suivi sur ${fmtDur(pts.length / P.fps)}`, 'ok', 4000);
   } catch (e) { box.close(); toast('Suivi impossible : ' + (e.message || e), 'err', 5000); }
   finally { try { input && input.dispose && input.dispose(); } catch (e) { } TRK.busy = false; }
+  return result;
 }
 /* accroches */
 function trkSrc() {
@@ -2933,6 +3000,31 @@ function trackPane() {
       <button class="ibtn" data-act="trkfx:anonpix">${ic('frame')}Pixels</button><button class="ibtn" data-act="trkfx:halopt">${ic('sun')}Halo</button>
       <button class="ibtn" data-act="trkfx:flare">${ic('fx')}Reflet</button><button class="ibtn" data-act="trkfx:bolt">${ic('bolt')}Éclair</button>
       <button class="ibtn" data-act="trkfx:fire">${ic('flame')}Feu</button><button class="ibtn" data-act="trkfx:magic">${ic('fx')}Magie</button></div>`) : '');
+}
+/* ---------- Le suivi comme réglage d'un calque d'effet ou d'un texte ---------- */
+let PICKTRK = null;
+function trkBlock(c) {
+  const tg = c.follow && clipById(c.follow);
+  if (tg) return `<div class="kfnav"><span>${ic('target')} Suit un détail de « ${esc(tg.name || 'vidéo')} »</span></div>
+    <div class="ibtns"><button class="ibtn" data-do="trkpick">${ic('target')}Refaire le suivi</button><button class="ibtn" data-do="unfollow">${ic('x')}Détacher</button></div>`;
+  return `<div class="ibtns"><button class="ibtn wide${PICKTRK === c.id ? ' on' : ''}" data-do="trkpick">${ic('target')}${PICKTRK === c.id ? 'Cliquez sur le détail dans l\'aperçu…' : 'Suivre un détail de la vidéo'}</button></div>`;
+}
+function trkPickStart(c) {
+  if (!c) return; if (PICKTRK === c.id) { PICKTRK = null; refreshInsp(); $('#vwrap').style.cursor = ''; return; }
+  if (T < c.start || T >= cEnd(c)) setTime(c.start);
+  PICKTRK = c.id; refreshInsp(); $('#vwrap').style.cursor = 'crosshair';
+  toast(`Cliquez dans l'aperçu sur le détail à suivre (une main, un visage, un objet). Le suivi part de la tête de lecture jusqu'à la fin du ${c.type === 'fx' ? 'calque' : 'texte'}.`, '', 6000);
+}
+async function trkPickAt(p) { // clic dans l'aperçu pendant le choix du point
+  const L = clipById(PICKTRK); PICKTRK = null; $('#vwrap').style.cursor = '';
+  if (!L) return; const was = !!L.follow;
+  const vids = activeVisuals(T).filter(x => x.type === 'video').reverse();
+  const v = vids.find(x => { const uv = projToUV(clipXform(x, T, trState()), p.x, p.y); return uv.u >= 0 && uv.u <= 1 && uv.v >= 0 && uv.v <= 1; });
+  if (!v) { toast('Il n\'y a pas de vidéo à cet endroit, à cette image', 'err'); refreshInsp(); return; }
+  const uv = projToUV(clipXform(v, T, trState()), p.x, p.y);
+  const r = await trackFrom(v, uv.u, uv.v, { from: T, to: cEnd(L), layer: L });
+  if (r && L.type === 'text' && !was) { act(() => { L.x = 0; L.y = -Math.round(P.h * .07); }); }
+  SEL = new Set([L.id]); refreshAll();
 }
 
 /* ==========================================================================
@@ -4121,6 +4213,7 @@ function viewerInit() {
   w.addEventListener('pointerdown', e => {
     if (!P || e.button !== 0) return;
     const p = vpt(e); const hk = e.target.closest && e.target.closest('[data-h]');
+    if (PICKTRK) { trkPickAt(p); return; }
     let c = hk ? overlayClip() : hitClip(p);
     if (TL.tool === 'track' && !hk) { const v = c && c.type === 'video' ? c : P.clips.filter(x => x.type === 'video' && T >= x.start && T < cEnd(x)).sort((a, b) => trackIdx(a) - trackIdx(b))[0];
       if (!v) { toast('Placez la tête de lecture sur une vidéo puis cliquez sur le détail à suivre'); return; }
@@ -4222,14 +4315,14 @@ function refreshInsp() {
     <div class="chips" style="grid-template-columns:repeat(8,1fr)">${['#000000', '#ffffff', '#363c98', '#111827', '#b91c1c', '#059669', '#f59e0b', '#ec4899'].map(k => `<button class="chip" data-do="col:${k}" title="${k}"><i style="background:${k};height:18px;border:1px solid #fff3"></i></button>`).join('')}</div>`);
   if (c.type === 'fx') h += sec('fxl', 'Calque d\'effet', 'fx', '#f97316', `<div class="ihint" style="text-align:left">Les effets de ce calque s'appliquent à tout ce qui est en dessous, seulement pendant sa durée. Rognez-le ou déplacez-le dans la timeline.</div>
       ${sl('op', 'Mélange avec l\'image d\'origine', 0, 100, 1, c.op ?? 1, { mul: 100, fmt: pct })}
-      ${c.follow && clipById(c.follow) ? `<div class="kfnav"><span>${ic('target')} Suit le point de « ${esc(clipById(c.follow).name || 'vidéo')} »</span><button class="ibtn" data-do="unfollow">Détacher</button></div>` : ''}`);
+      <div class="isub">Position</div>${trkBlock(c)}`);
   if (vis && c.type !== 'fx') {
     h += sec('frame', 'Cadre', 'frame', '#60a5fa', `
       <div class="f2">${sl('x', 'Position X', -P.w, P.w, 1, pv(c, 'x', T), { u: '', kf: c })}${sl('y', 'Position Y', -P.h, P.h, 1, pv(c, 'y', T), { u: '', kf: c })}</div>
       ${sl('sc', 'Échelle', 2, 400, 1, pv(c, 'sc', T), { mul: 100, fmt: pct, kf: c })}
       <div class="f2">${sl('rot', 'Rotation', -180, 180, 0.5, pv(c, 'rot', T), { u: '°', kf: c })}${sl('op', 'Opacité', 0, 100, 1, pv(c, 'op', T), { mul: 100, fmt: pct, kf: c })}</div>
       ${kfTimes(c).length ? `<div class="kfnav"><button class="ibtn" data-do="kfprev">${ic('arrowL')}</button><span>◆ ${kfTimes(c).length} image${kfTimes(c).length > 1 ? 's' : ''} clé${kfTimes(c).length > 1 ? 's' : ''}</span><button class="ibtn" data-do="kfnext">${ic('arrowR')}</button><button class="ibtn" data-do="kfclear" title="Retirer toutes les images clés">${ic('trash')}</button></div>` : ''}
-      ${c.follow && clipById(c.follow) ? `<div class="kfnav"><span>${ic('center')} Accroché au suivi de « ${esc(clipById(c.follow).name || 'vidéo')} »</span><button class="ibtn" data-do="unfollow">Détacher</button></div>` : ''}
+      ${c.type === 'text' ? trkBlock(c) : ''}
       <div class="ibtns"><button class="ibtn" data-do="center">${ic('center')}Centrer</button><button class="ibtn" data-do="fit">${ic('frame')}Ajuster</button>
       <button class="ibtn" data-do="fill">${ic('fill')}Remplir</button><button class="ibtn" data-do="resetxf">${ic('reset')}Réinitialiser</button></div>`);
   }
@@ -4369,6 +4462,7 @@ function inspInit(box) {
     if (k === 'cgreset') { act(() => { for (const c of list) delete c.cg; }); return; }
     if (k === 'eqp') { const pr = EQP.find(x => x[0] === v); if (pr) { act(() => { for (const c of list) if (isAV(c)) c.eq = Object.assign({}, pr[2]); }); refreshInsp(); } return; }
     if (k === 'speed') return doSpeed(+v);
+    if (k === 'trkpick') return trkPickStart(list[0]);
     act(() => {
       for (const c of list) {
         switch (k) {
@@ -5612,6 +5706,8 @@ const GUIDE = [
     <li>Le modèle (environ 16 Mo) se télécharge à la première utilisation, puis reste en mémoire du navigateur. Tout est calculé sur votre ordinateur, gratuitement et sans limite : vos vidéos ne partent nulle part.</li></ul>
     <div class="tip"><b>Bon à savoir :</b> l'IA est faite pour les personnes (corps, visage, cheveux, vêtements). Pour un objet, ou si vous voulez un détourage parfait des cheveux, le fond vert reste le meilleur choix.</div>
     <h3>Suivi de point</h3>
+    <p><b>Le plus simple :</b> posez l'effet (Feu, Éclair, Halo, Flou suivi…), puis dans ses propriétés, bloc <b>Position</b>, cliquez sur <b>Suivre un détail de la vidéo</b> et cliquez dans l'aperçu sur ce qu'il doit suivre. Le suivi se calcule du début à la fin du calque, et l'effet colle au détail. Même chose pour un texte (bloc Cadre). « Refaire le suivi » recommence depuis la tête de lecture ; « Détacher » le rend fixe.</p>
+    <p>Le suivi repère une trentaine de petits points bien marqués autour de l'endroit cliqué et les suit ensemble : il tient les rotations, les changements de taille, les flous de bougé et les passages derrière un obstacle. Cliquez sur un endroit contrasté (un bord, un motif, un œil), pas sur une zone unie.</p>
     <ul><li>Prenez l'outil ${gk('target')} <b>Suivi de point</b> (<kbd>K</kbd>), placez la tête de lecture là où commence le suivi, puis cliquez sur un détail bien contrasté de la vidéo (une main, un logo, un visage).</li>
     <li>MOMOmov suit ce détail image par image jusqu'à la fin du clip. Le trajet s'affiche en pointillés cyan dans l'aperçu.</li>
     <li>Le suivi tient les changements de lumière, les mouvements rapides et le détail brièvement caché (une main qui passe devant) : il devine la trajectoire pendant environ une seconde et demie puis raccroche. S'il s'arrête quand même (détail sorti de l'image, trop longtemps caché, ou qui tourne ou change beaucoup de taille), un message donne le moment : placez-y la tête de lecture et recliquez sur le détail, le suivi reprend à partir de là.</li>
