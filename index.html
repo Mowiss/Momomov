@@ -1179,11 +1179,16 @@ function syncMedia(t) {
     const g = audible ? c.vol * fadeGain(c, t) * xGain(c, t) : 0;
     if (p.g) p.g.gain.setTargetAtTime(g, now, 0.012); else p.el.volume = clamp(g * SET.mvol, 0, 1);
     if (act && playing) {
-      if (Math.abs(p.el.playbackRate - c.speed) > 1e-3) p.el.playbackRate = c.speed;
       if (p.el.paused) {
-        if (Math.abs(p.el.currentTime - st) > 0.04) p.el.currentTime = st;
+        p.el.playbackRate = c.speed;
+        if (Math.abs(p.el.currentTime - st) > 0.04) { p.el.currentTime = st; p.lastSeek = performance.now(); }
         const pr = p.el.play(); if (pr) pr.catch(() => { });
-      } else if (Math.abs(p.el.currentTime - st) > 0.3 * Math.max(1, c.speed)) p.el.currentTime = st;
+      } else if (!p.el.seeking) {
+        // on rattrape en douceur (vitesse ±10 %) ; on ne repositionne qu'en cas de gros écart, au plus toutes les 2 s
+        const d = p.el.currentTime - st, nowp = performance.now();
+        if (Math.abs(d) > 0.75 * Math.max(1, c.speed) && (!p.lastSeek || nowp - p.lastSeek > 2000)) { p.lastSeek = nowp; p.el.currentTime = st; }
+        else { const r = c.speed * clamp(1 - d * .6, .9, 1.1); if (Math.abs(p.el.playbackRate - r) > .015) p.el.playbackRate = r; }
+      }
     } else {
       if (!p.el.paused) p.el.pause();
       const target = act ? st : c.in;
@@ -1267,7 +1272,8 @@ function drawClip(ctx, c, t) {
 }
 function paintClip(ctx, c, t, X) {
   let src = null;
-  if (c.type === 'video') { const p = PL.get(c.id); if (p && p.el.readyState >= 2) src = p.el; else { const m = M.get(c.mediaId); src = m && thumbAt(m, srcTime(c, t)); } }
+  if (c.type === 'video' && FRAMESRC.has(c.id)) src = FRAMESRC.get(c.id);
+  else if (c.type === 'video') { const p = PL.get(c.id); if (p && p.el.readyState >= 2) src = p.el; else { const m = M.get(c.mediaId); src = m && thumbAt(m, srcTime(c, t)); } }
   else if (c.type === 'image') { const m = M.get(c.mediaId); src = m && m.img; }
   ctx.save();
   ctx.globalAlpha = clamp(c.op, 0, 1);
@@ -1364,6 +1370,11 @@ function frameLoop(now) {
   requestAnimationFrame(frameLoop);
   if (!P || (EXP && EXP.offline)) return;
   if (PLAY.on) {
+    // si une vidéo à l'image n'a pas encore ses images, l'horloge attend au lieu de partir devant (évite l'emballement des repositionnements)
+    const stall = !EXP && videoStalled(T);
+    if (stall) { if (!PLAY.st0) PLAY.st0 = now; }
+    else PLAY.st0 = 0;
+    if (stall && now - PLAY.st0 < 3000) { PLAY.t0 = T; PLAY.p0 = performance.now(); }
     T = PLAY.t0 + (performance.now() - PLAY.p0) / 1000;
     const end = EXP ? EXP.end : playEnd();
     if (T >= end) {
@@ -1378,6 +1389,15 @@ function frameLoop(now) {
   } else if (NEEDDRAW) {
     NEEDDRAW = false; syncMedia(T); drawFrame(CX, T); drawOverlay(); updTC();
   }
+}
+function videoStalled(t) {
+  for (const [id, p] of PL) {
+    if (p.kind !== 'video') continue; const c = clipById(id); if (!c || t < c.start || t >= cEnd(c) - .25) continue;
+    const tr = trackOf(c); if (tr && tr.hide) continue;
+    const md = media(c.mediaId); if (md && srcTime(c, t) > md.dur - .3) continue;
+    if (p.el.seeking || p.el.readyState < 3) return true;
+  }
+  return false;
 }
 function meter() {
   const m = $('#vmeter'); if (!m || !METER) return;
@@ -3755,7 +3775,7 @@ async function convertForEdit(blob, name, kind) {
     else {
       box.status('Réemballage rapide…');
       try { out = await tryRun('mp4', ['-map', '0:v:0', '-map', '0:a:0?', '-c', 'copy', '-movflags', '+faststart']); const u = URL.createObjectURL(out); try { const m = await loadMeta(u, 'video'); if (!(m.w > 0 && isFinite(m.dur) && m.dur > 0)) out = null; } catch (e) { out = null; } URL.revokeObjectURL(u); } catch (e) { if (box.cancelled) throw e; out = null; }
-      if (!out) { box.status('Conversion de la vidéo (cela peut prendre un moment)…'); out = await tryRun('mp4', ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart']); }
+      if (!out) { box.status('Conversion de la vidéo (cela peut prendre un moment)…'); out = await tryRun('mp4', ['-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18', '-g', '30', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '256k', '-movflags', '+faststart']); }
       oname = base + '.mp4';
     }
     box.close(); return { blob: out, name: oname };
@@ -3799,6 +3819,39 @@ function nativeOut(f) {
    Export accéléré (WebCodecs) : rendu image par image + encodeur matériel
    ========================================================================== */
 const MUXV = { mp4: 'https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.2/build/mp4-muxer.js', webm: 'https://cdn.jsdelivr.net/npm/webm-muxer@5.1.4/build/webm-muxer.js' };
+const MBV = 'https://cdn.jsdelivr.net/npm/mediabunny@1.61.6/dist/bundles/mediabunny.min.mjs';
+const FRAMESRC = new Map();
+async function loadMB() { if (!window.__MB) window.__MB = await import(MBV); return window.__MB; }
+/* lecteurs « en continu » : chaque vidéo est décodée dans l'ordre par la carte graphique, sans aucun repositionnement */
+async function buildDecoders(a, b, fps, N) {
+  let MB = null; try { MB = await loadMB(); } catch (e) { return null; }
+  const plans = new Map();
+  for (const c of P.clips) {
+    if (c.type !== 'video') continue; const tr = trackOf(c); if (tr && tr.hide) continue;
+    const m = M.get(c.mediaId); if (!m) continue;
+    const [s0, e0] = extRange(c); const ts = []; let first = -1;
+    for (let i = Math.max(0, Math.floor((s0 - a) * fps)); i < N; i++) { const t = a + i / fps; if (t < s0 - EPS) continue; if (t >= e0) break; if (first < 0) first = i; ts.push(Math.max(0, srcTime(c, t))); }
+    if (ts.length) plans.set(c.id, { c, first, last: first + ts.length - 1, ts, blob: m.blob, gen: null, input: null, last_cv: null, failed: false });
+  }
+  return { MB, plans };
+}
+async function decFrame(D, i) {
+  for (const pl of D.plans.values()) {
+    if (pl.failed || i < pl.first || i > pl.last) continue;
+    if (!pl.gen) {
+      try {
+        pl.input = new D.MB.Input({ source: new D.MB.BlobSource(pl.blob), formats: D.MB.ALL_FORMATS });
+        const tk = await pl.input.getPrimaryVideoTrack();
+        if (!tk || !(await tk.canDecode())) throw new Error('codec');
+        pl.gen = new D.MB.CanvasSink(tk, { poolSize: 3 }).canvasesAtTimestamps(pl.ts);
+      } catch (e) { pl.failed = true; try { pl.input && pl.input.dispose && pl.input.dispose(); } catch (x) { } continue; }
+    }
+    try { const r = await pl.gen.next(); if (r.value && r.value.canvas) pl.last_cv = r.value.canvas; } catch (e) { pl.failed = true; FRAMESRC.delete(pl.c.id); continue; }
+    if (pl.last_cv) FRAMESRC.set(pl.c.id, pl.last_cv);
+    if (i === pl.last) { try { await pl.gen.return(); } catch (e) { } try { pl.input.dispose && pl.input.dispose(); } catch (e) { } pl.gen = null; pl.failed = true; FRAMESRC.delete(pl.c.id); }
+  }
+}
+function endDecoders(D) { if (!D) return; for (const pl of D.plans.values()) { try { pl.gen && pl.gen.return(); } catch (e) { } try { pl.input && pl.input.dispose && pl.input.dispose(); } catch (e) { } } FRAMESRC.clear(); }
 const fastCapable = () => !!(window.VideoEncoder && window.AudioEncoder && window.VideoFrame && window.AudioData && window.OfflineAudioContext);
 
 /* ---------- Mixage du son hors temps réel ---------- */
@@ -3908,12 +3961,14 @@ async function fastExport(o, OF) {
     pause(); EXP = { end: b, offline: true };
     const ec = document.createElement('canvas'); ec.width = w; ec.height = h; const ex = ec.getContext('2d');
     const gop = Math.round(fps * 2); let last = 0;
+    box.status('Préparation des vidéos sources…', 5);
+    const DEC = await buildDecoders(a, b, fps, N); box.dec = DEC;
     box.status(`Rendu des images${vc.hw ? ' (accélération matérielle)' : ''}…`, 5);
     box.t0 = performance.now();
     for (let i = 0; i < N; i++) {
       if (box.cancelled) break; if (encErr) throw encErr;
       const t = a + i / fps;
-      await prepFrame(t);
+      if (DEC) { await decFrame(DEC, i); await prepFrame(t, FRAMESRC); } else await prepFrame(t);
       T = t; drawFrame(CX, t);
       ex.drawImage(CV(), 0, 0, w, h);
       const vf = new VideoFrame(ec, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
@@ -3922,7 +3977,7 @@ async function fastExport(o, OF) {
       const now = performance.now();
       if (now - last > 150) { last = now; const el = (now - box.t0) / 1000, sp = (i + 1) / fps / el; box.prog((i + 1) / N); box.status(`Rendu des images${vc.hw ? ' (accélération matérielle)' : ''} — ${sp >= 1 ? '×' + sp.toFixed(1) + ' plus vite que le temps réel' : Math.round((i + 1) / el) + ' images/s'}`); }
     }
-    EXP = null;
+    EXP = null; endDecoders(DEC);
     if (box.cancelled) { try { venc.close(); aenc && aenc.close(); } catch (e) { } toast('Export annulé'); reqDraw(); return; }
     box.status('Finalisation…', 99);
     await venc.flush(); if (aenc) await aenc.flush(); if (encErr) throw encErr;
@@ -3943,7 +3998,7 @@ async function fastExport(o, OF) {
     download(out, safeName(P.name) + '.' + OF.ext);
     toast(`Export terminé en ${fmtDur((performance.now() - t0) / 1000)} : ${safeName(P.name)}.${OF.ext} (${(out.size / 1048576).toFixed(1)} Mo)`, 'ok', 6000);
   } catch (e) {
-    EXP = null; box.close(); reqDraw();
+    EXP = null; endDecoders(box.dec); box.close(); reqDraw();
     if (box.cancelled) { toast('Export annulé'); return; }
     if (e && e.message === 'nocodec') return 'fallback';
     toast('Export accéléré impossible : ' + (e && e.message || e) + ' — passage à l\'export classique', 'err', 6000);
@@ -3951,10 +4006,10 @@ async function fastExport(o, OF) {
   }
 }
 /* place chaque vidéo exactement sur l'image voulue */
-async function prepFrame(t) {
+async function prepFrame(t, skip) {
   const need = [];
   for (const c of P.clips) {
-    if (c.type !== 'video') continue;
+    if (c.type !== 'video' || (skip && skip.has(c.id))) continue;
     const tr = trackOf(c); if (tr && tr.hide) continue;
     const [s0, e0] = extRange(c); if (!(t >= s0 - EPS && t < e0)) continue;
     const p = player(c); if (!p) continue;
@@ -4441,7 +4496,7 @@ function dvdConvert(t) {
   const p = DVDPRE[DVDSET.quality] || DVDPRE.balanced, base = dvdSafe(DVD.name) + '_Titre' + String(t.vts).padStart(2, '0'), split = DVDSET.split && t.chapters.length > 1;
   const args = ['-hide_banner', '-fflags', '+genpts', '-i', 'concat:' + t.vobs.map(f => '/dvdin/' + f.name).join('|'), '-map', '0:v:0', '-map', '0:a:0?'];
   if (DVDSET.deint) args.push('-vf', 'yadif=0:-1:1');
-  args.push('-c:v', 'libx264', '-preset', p.preset, '-crf', String(p.crf), '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', DVDSET.abr + 'k', '-ac', '2');
+  args.push('-c:v', 'libx264', '-preset', p.preset, '-crf', String(p.crf), '-g', '50', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', DVDSET.abr + 'k', '-ac', '2');
   if (split) { const times = t.chapters.slice(1).map(x => x.toFixed(3)).join(','); args.push('-force_key_frames', times, '-f', 'segment', '-segment_times', times, '-reset_timestamps', '1', '-segment_start_number', '1', '-segment_format', 'mp4', '-segment_format_options', 'movflags=+faststart', '/dvdout/' + base + '_Chap%02d.mp4'); }
   else args.push('-movflags', '+faststart', '/dvdout/' + base + '.mp4');
   t.status = 'queued'; t.error = ''; t.progress = 0; t.progTxt = 'En attente…';
